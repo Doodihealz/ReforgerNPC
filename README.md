@@ -1,2 +1,18 @@
-# ReforgerNPC
-Eluna npc that reforges enchantment stats on items
+Reforging NPC that applies 2 random enchantments to any equipped item.
+
+How to install:
+
+Step 1. Run Reforger.sql on your creature_template table to make the proper npc
+
+Step 2. Run Item_Enchant_tables.sql on your world database to give the proper random enchantment tables for the script to run off of.
+
+Step 3. Put the Reforger.lua in your scripts folder.
+
+-Side notes-
+You may adjust the cost of item quality in the script itself. You can also edit the npc id it hooks into.
+
+In game you may spawn the npc and start reforging your equipped items right away. It works by deleting the item, re-adding it to the player and re-equipping it. It struggles to reforge items with affixes (Of the Monkey).
+You may use this for your server but I ask for credit if at all possible.
+
+
+I will not assist you if you edit the script and break something. Any questions please post on my release page in the WoW Modding Community Discord. 
