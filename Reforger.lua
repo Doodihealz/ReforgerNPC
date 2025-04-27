@@ -1,4 +1,4 @@
-﻿print("[Reforger] Loaded successfully.")
+print("[Reforger] Loaded successfully.")
 
 local NPC_ID = 200004
 
@@ -153,6 +153,12 @@ function Reforger_OnGossipSelect(event, player, creature, sender, intid, code)
 
     if player:GetItemCount(entry) < 1 then
         SendYellowMessage(player, "You no longer have the item.")
+        player:GossipComplete()
+        return
+    end
+
+    if player:GetCoinage() < cost then
+        SendYellowMessage(player, "You don't have enough gold.")
         player:GossipComplete()
         return
     end
