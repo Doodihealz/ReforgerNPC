@@ -12,7 +12,7 @@ Enjoy!
 
 How it works:
 
-The script pulls from the tables included and the chance included and applies 2 enchantments to any equipped item. It deletes the item from the player, re-adds it with the enchants and re-equips it. Because of this any gems you have in the item will be lost upon reforging. Every item in WoW has 2 enchantment slots. Weapon poisons, shaman enchants, etc take up slot 2. Slot 1 is taken up by regular enchants you would use from items or the profession.
+The script pulls from the tables included and the chance included and applies 2 enchantments to any equipped item. It deletes the item from the player, re-adds it with the enchants and re-equips it. Because of this any gems you have in the item will be lost upon reforging. Every item in WoW has 2 enchantment slots. Weapon poisons, shaman enchants, etc take up slot 2. Slot 1 is taken up by regular enchants you would use from items or the enchanting profession.
 
 Example:
 
