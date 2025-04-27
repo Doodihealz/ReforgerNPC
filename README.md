@@ -26,4 +26,4 @@ You may adjust the cost of item quality in the script itself. You can also edit 
 Because it deletes the items and re-adds them, items with rolls like (Of the Monkey) may be returned with (Of the Whale) or something else.
 
 You may use this for your server but I ask for credit if at all possible.
-I will not assist you if you edit the script and break something. Any questions please post on my release page in the WoW Modding Community Discord. 
+I will not assist you if you edit the script and break something. Any questions please post on my release page in the WoW Modding Community Discord. https://discord.com/channels/407664041016688662/1366126332702097529
