@@ -16,10 +16,11 @@ The script pulls from the tables included and the chance included and applies 2 
 
 Example:
 
-+14 Agility
-+8 Stamina
+Slot 1: +14 Agility
 
-Shaman enchants would override +8 Stamina
+Slot 2: +8 Stamina
+
+Shaman's Flametongue Weapon spell would override +8 Stamina
 
 Normal enchants change slot 1 of any item. So adding +10 all stats would replace the +14 agility
 
