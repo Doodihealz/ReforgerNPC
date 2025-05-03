@@ -24,7 +24,7 @@ local function IsValidEquipable(item)
     if EXCLUDED_IDS[item:GetEntry()] then return false end
     local class = item:GetClass()
     local invType = item:GetInventoryType()
-    return (class == 2 or class == 4) and invType > 0 and invType < 24
+    return (class == 2 or class == 4) and (invType > 0 and invType < 24 or invType == 25 or invType == 26 or invType == 28)
 end
 
 local function RollEnchant(item)
@@ -73,6 +73,8 @@ local function ClassifyItem(item)
     local invType = item:GetInventoryType()
     if invType == 13 or invType == 14 or invType == 15 or invType == 17 or invType == 21 or invType == 23 then
         return "Weapons"
+    elseif invType == 25 or invType == 26 or invType == 28 then
+        return "Relics"
     elseif invType == 1 or invType == 3 or invType == 5 or invType == 6 or invType == 7 or invType == 8 or invType == 9 or invType == 10 then
         return "Armor"
     elseif invType == 2 or invType == 11 or invType == 12 or invType == 16 then
@@ -97,6 +99,7 @@ function Reforger_OnGossipHello(event, player, creature)
         ["Weapons"] = {},
         ["Armor"] = {},
         ["Accessories"] = {},
+        ["Relics"] = {},
         ["Miscellaneous"] = {}
     }
 
