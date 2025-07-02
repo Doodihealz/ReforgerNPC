@@ -81,7 +81,6 @@ local function RollEnchant(item, player, blacklist)
     local tier = player:GetLevel() >= 80 and 5 or player:GetLevel() >= 70 and 4 or player:GetLevel() >= 60 and 3 or player:GetLevel() >= 40 and 2 or 1
 
     local preferWeapon = (itemClass == "WEAPON") and (math.random(100) <= 10)
-
     local baseQuery
 
     if itemClass == "WEAPON" then
@@ -91,7 +90,7 @@ local function RollEnchant(item, player, blacklist)
             baseQuery = "SELECT enchantID FROM item_enchantment_random_tiers WHERE tier <= "..tier.." AND (class = 'WEAPON' OR class = 'ANY')"
         end
     else
-        baseQuery = "SELECT enchantID FROM item_enchantment_random_tiers WHERE tier = "..tier.." AND (class = '"..itemClass.."' OR class = 'ANY')"
+        baseQuery = "SELECT enchantID FROM item_enchantment_random_tiers WHERE tier <= "..tier.." AND (class = '"..itemClass.."' OR class = 'ANY')"
     end
 
     local query = WorldDBQuery(baseQuery .. " ORDER BY RAND()")
