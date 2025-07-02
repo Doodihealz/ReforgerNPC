@@ -1,33 +1,53 @@
-Reforging NPC that applies 2 random enchantments to any equipped item.
+## Reforger NPC (Eluna / AzerothCore)
 
-How to install:
+A reforging NPC that applies **two random enchantments** to an equipped item. It uses a custom tier-based enchantment system to determine what's eligible at various player levels, and supports both armor and weapon enchantments — including support for Shaman imbues, poisons, and rare effects like Windfury or Mongoose.
 
-Step 1. Run Reforger.sql on your creature_template table to make the proper npc
+### 💾 Installation
 
-Step 2. Run Item_Enchant_tables.sql on your world database to give the proper random enchantment tables for the script to run off of.
+1. Run `Reforger.sql` on your world database to create the reforging NPC.
+2. Run `item_enchantment_random_tiers.sql` to install the tiered enchantment definitions.
+3. Place `Reforger.lua` inside your server's `lua_scripts/` directory.
 
-Step 3. Put the Reforger.lua in your scripts folder.
+### 🔧 How It Works
 
-Enjoy!
+When interacting with the NPC, the script lets the player select an eligible equipped item. That item is deleted, re-created with 2 random enchantments, and then re-equipped. Because of this, **socketed gems will be lost**, suffixes like “of the Bear” may change, and temporary effects like poisons or imbues may be overridden.
 
-How it works:
+Each item has two enchant slots:
+- **Slot 1** is for normal enchants (+10 Stats, Crusader, etc.)
+- **Slot 2** is for temp effects (Windfury, poisons, etc.)
 
-The script pulls from the tables included and the chance included and applies 2 enchantments to any equipped item. It deletes the item from the player, re-adds it with the enchants and re-equips it. Because of this any gems you have in the item will be lost upon reforging. Every item in WoW has 2 enchantment slots. Weapon poisons, shaman enhancements, etc take up slot 2. Slot 1 is taken up by regular enchants you would use from items or the enchanting profession.
+Example:  
+`Slot 1: +14 Agility`  
+`Slot 2: +8 Stamina`  
+Casting Flametongue would override +8 Stamina.  
+Adding +10 Stats would override +14 Agility.
 
-Example:
+### 📊 Enchantment Tier System
 
-Slot 1: +14 Agility
+The `item_enchantment_random_tiers` table defines the tiers. The script uses your character level to determine the **highest eligible tier**:
+- Tier 1 = Level 1+
+- Tier 2 = Level 40+
+- Tier 3 = Level 60+
+- Tier 4 = Level 70+
+- Tier 5 = Level 80+
 
-Slot 2: +8 Stamina
+Items are only eligible for enchantments of their class (WEAPON, ARMOR, or ANY). Weapon enchantments (like Windfury or Mongoose) are slightly favored when reforging weapons (10% increased chance), but they **can** still be missed for variety.
 
-Shaman's Flametongue Weapon spell would override +8 Stamina
+All enchantments are pulled from your SQL data. Weapon enchants like Windfury 2 are tagged as WEAPON and tier 3 — meaning they only become available at level 60+ and only apply to weapons.
 
-Normal enchants change slot 1 of any item. So adding +10 all stats would replace the +14 agility
+**Duplicate enchantments will never be applied** (e.g., you will not get Windfury 3 twice on the same item). Two similar but distinct enchants (like +43 and +44 spellpower) are allowed.
 
--Side notes-
-You may adjust the cost of item quality in the script itself. You can also edit the npc id it hooks into.
-Because it deletes the items and re-adds them, items with rolls like (Of the Monkey) may be returned with (Of the Whale) or something else.
-Some enchants will apply to items but not work. For example, Windfury rolling on a helmet does nothing. Oddly enough if you roll Windfury on a shield it does work.
+### ⚠️ Additional Notes
 
-You may use this for your server but I ask for credit if at all possible.
-I will not assist you if you edit the script and break something. Any questions please post on my release page in the WoW Modding Community Discord. https://discord.com/channels/407664041016688662/1366126332702097529
+- **Ranged Attack Power** enchants are only applied if the player is a **Hunter** (class ID 4).
+- Items with suffix stats (e.g., “of the Monkey”) will reroll randomly after reforging.
+
+### 🛠 Customization
+
+- Edit gold cost per item quality inside `Reforger.lua` (`QUALITY_COST` table).
+- Adjust NPC ID or excluded item list freely.
+
+### 🧾 Credit
+
+- You are free to use and modify this for your server. If you do release a variant of this mod you must provide it for free. I ask you to kindly credit me if you do (Doodihealz / Corey) 
+- I will only support unmodified versions. For questions, visit the WoW Modding Community Discord release thread: https://discord.com/channels/407664041016688662/1366126332702097529
