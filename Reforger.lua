@@ -27,18 +27,19 @@ local function IsValidEquipable(item)
     return (class == 2 or class == 4) and (invType > 0 and invType < 24 or invType == 25 or invType == 26 or invType == 28)
 end
 
-local function RollEnchant(item)
-    local itemClass = "ANY"
-    if item:GetClass() == 2 then
-        itemClass = "WEAPON"
-    elseif item:GetClass() == 4 then
-        itemClass = "ARMOR"
-    end
-    local query = WorldDBQuery("SELECT enchantID FROM item_enchantment_random_tiers WHERE tier=1 AND (exclusiveSubClass=1 AND class='" .. itemClass .. "' OR exclusiveSubClass=" .. item:GetSubClass() .. " OR class='ANY') ORDER BY RAND() LIMIT 1")
-    if query then
-        return query:GetUInt32(0)
-    end
-    return nil
+local function FormatGold(cost)
+    local gold = math.floor(cost / 10000)
+    local silver = math.floor((cost % 10000) / 100)
+    local copper = cost % 100
+    local parts = {}
+    if gold > 0 then table.insert(parts, string.format("|cffffd700%dg|r", gold)) end
+    if silver > 0 then table.insert(parts, string.format("|cffc7c7cf%ds|r", silver)) end
+    if copper > 0 then table.insert(parts, string.format("|cffeda55f%dc|r", copper)) end
+    return table.concat(parts, " ")
+end
+
+local function SendYellowMessage(player, message)
+    player:SendBroadcastMessage("|cffffff00" .. message .. "|r")
 end
 
 local function GetEligibleItems(player)
@@ -52,36 +53,61 @@ local function GetEligibleItems(player)
     return items
 end
 
-local function FormatGold(cost)
-    local gold = math.floor(cost / 10000)
-    local silver = math.floor((cost % 10000) / 100)
-    local copper = cost % 100
-
-    local parts = {}
-    if gold > 0 then table.insert(parts, string.format("|cffffd700%dg|r", gold)) end
-    if silver > 0 then table.insert(parts, string.format("|cffc7c7cf%ds|r", silver)) end
-    if copper > 0 then table.insert(parts, string.format("|cffeda55f%dc|r", copper)) end
-
-    return table.concat(parts, " ")
-end
-
-local function SendYellowMessage(player, message)
-    player:SendBroadcastMessage("|cffffff00" .. message .. "|r")
-end
-
 local function ClassifyItem(item)
     local invType = item:GetInventoryType()
     if invType == 13 or invType == 14 or invType == 15 or invType == 17 or invType == 21 or invType == 23 then
         return "Weapons"
     elseif invType == 25 or invType == 26 or invType == 28 then
-        return "Relics"
-    elseif invType == 1 or invType == 3 or invType == 5 or invType == 6 or invType == 7 or invType == 8 or invType == 9 or invType == 10 then
+        return "Accessories"
+    elseif invType == 1 or invType == 3 or invType == 5 or invType == 6 or invType == 7
+        or invType == 8 or invType == 9 or invType == 10 or invType == 16 then
         return "Armor"
-    elseif invType == 2 or invType == 11 or invType == 12 or invType == 16 then
+    elseif invType == 2 or invType == 11 or invType == 12 then
         return "Accessories"
     else
         return "Miscellaneous"
     end
+end
+
+local RANGED_AP_IDS = {
+    [2047]=true,[2048]=true,[2049]=true,[2050]=true,[2051]=true,[2052]=true,[2053]=true,
+    [2054]=true,[2055]=true,[2056]=true,[2057]=true,[2058]=true,[2059]=true,[2060]=true,
+    [2061]=true,[2062]=true,[2064]=true,[2065]=true,[2066]=true,[2067]=true,[2068]=true,
+    [2069]=true,[2070]=true,[2071]=true,[2072]=true,[2073]=true,[2074]=true
+}
+
+local function RollEnchant(item, player, blacklist)
+    local itemClass = item:GetClass() == 2 and "WEAPON" or item:GetClass() == 4 and "ARMOR" or "ANY"
+    local tier = player:GetLevel() >= 80 and 5 or player:GetLevel() >= 70 and 4 or player:GetLevel() >= 60 and 3 or player:GetLevel() >= 40 and 2 or 1
+
+    local preferWeapon = (itemClass == "WEAPON") and (math.random(100) <= 10)
+
+    local baseQuery
+
+    if itemClass == "WEAPON" then
+        if preferWeapon then
+            baseQuery = "SELECT enchantID FROM item_enchantment_random_tiers WHERE tier <= "..tier.." AND class = 'WEAPON'"
+        else
+            baseQuery = "SELECT enchantID FROM item_enchantment_random_tiers WHERE tier <= "..tier.." AND (class = 'WEAPON' OR class = 'ANY')"
+        end
+    else
+        baseQuery = "SELECT enchantID FROM item_enchantment_random_tiers WHERE tier = "..tier.." AND (class = '"..itemClass.."' OR class = 'ANY')"
+    end
+
+    local query = WorldDBQuery(baseQuery .. " ORDER BY RAND()")
+    if not query then return nil end
+
+    repeat
+        local enchantId = query:GetUInt32(0)
+        if not blacklist[enchantId] then
+            if RANGED_AP_IDS[enchantId] and player:GetClass() ~= 4 then
+            else
+                return enchantId
+            end
+        end
+    until not query:NextRow()
+
+    return nil
 end
 
 function Reforger_OnGossipHello(event, player, creature)
@@ -94,13 +120,11 @@ function Reforger_OnGossipHello(event, player, creature)
         return
     end
 
-    local intid_counter = 1
     local slotGroups = {
-        ["Weapons"] = {},
-        ["Armor"] = {},
-        ["Accessories"] = {},
-        ["Relics"] = {},
-        ["Miscellaneous"] = {}
+        Weapons = {},
+        Armor = {},
+        Accessories = {},
+        Miscellaneous = {}
     }
 
     for _, item in ipairs(items) do
@@ -108,15 +132,16 @@ function Reforger_OnGossipHello(event, player, creature)
         table.insert(slotGroups[group], item)
     end
 
-    for groupName, groupItems in pairs(slotGroups) do
+    local displayOrder = { "Weapons", "Armor", "Accessories", "Miscellaneous" }
+    local intid_counter = 1
+
+    for _, groupName in ipairs(displayOrder) do
+        local groupItems = slotGroups[groupName]
         if #groupItems > 0 then
             player:GossipMenuAddItem(9, "|cff000000[" .. groupName .. "]|r", 9999, 0)
             for _, item in ipairs(groupItems) do
-                local entry = item:GetEntry()
-                local quality = item:GetQuality()
-                local cost = QUALITY_COST[quality] or 100000
-                local costStr = FormatGold(cost)
-                player:GossipMenuAddItem(0, "  " .. item:GetItemLink() .. " - " .. costStr, intid_counter, item:GetGUIDLow())
+                local cost = QUALITY_COST[item:GetQuality()] or 100000
+                player:GossipMenuAddItem(0, "  " .. item:GetItemLink() .. " - " .. FormatGold(cost), intid_counter, item:GetGUIDLow())
                 intid_counter = intid_counter + 1
             end
         end
@@ -131,10 +156,10 @@ function Reforger_OnGossipSelect(event, player, creature, sender, intid, code)
         return
     end
 
-    local selectedItem = nil
-    local equipSlot = nil
-
+    local selectedItem
+    local equipSlot
     local itemGUID = intid
+
     for slot = 0, 18 do
         local item = player:GetItemByPos(255, slot)
         if item and item:GetGUIDLow() == itemGUID and IsValidEquipable(item) then
@@ -166,7 +191,7 @@ function Reforger_OnGossipSelect(event, player, creature, sender, intid, code)
         return
     end
 
-    player:RemoveItem(selectedItem:GetEntry(), 1)
+    player:RemoveItem(entry, 1)
 
     local newItem = player:AddItem(entry, 1)
     if not newItem then
@@ -177,11 +202,22 @@ function Reforger_OnGossipSelect(event, player, creature, sender, intid, code)
     end
 
     local applied = 0
+    local appliedEnchants = {}
+
     for slotIndex = 0, 2 do
         if applied < 2 and math.random(5) >= 1 then
-            local enchantId = RollEnchant(newItem)
-            if enchantId then
+            local attempt = 0
+            local maxAttempts = 10
+            local enchantId
+
+            repeat
+                enchantId = RollEnchant(newItem, player, appliedEnchants)
+                attempt = attempt + 1
+            until (enchantId and not appliedEnchants[enchantId]) or attempt >= maxAttempts
+
+            if enchantId and not appliedEnchants[enchantId] then
                 newItem:SetEnchantment(enchantId, slotIndex)
+                appliedEnchants[enchantId] = true
                 applied = applied + 1
             end
         end
