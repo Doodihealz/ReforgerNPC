@@ -1,5 +1,3 @@
-print("[Reforger] Loaded successfully.")
-
 local NPC_ID = 200004
 
 local QUALITY_COST = {
@@ -78,7 +76,7 @@ local RANGED_AP_IDS = {
 
 local function RollEnchant(item, player, blacklist)
     local itemClass = item:GetClass() == 2 and "WEAPON" or item:GetClass() == 4 and "ARMOR" or "ANY"
-    local tier = player:GetLevel() >= 80 and 5 or player:GetLevel() >= 70 and 4 or player:GetLevel() >= 60 and 3 or player:GetLevel() >= 40 and 2 or 1
+    local tier = player:GetLevel() >= 80 and 5 or player:GetLevel() >= 70 and 4 or player:GetLevel() >= 60 and 3 or player:GetLevel() >= 30 and 2 or 1
 
     local preferWeapon = (itemClass == "WEAPON") and (math.random(100) <= 10)
     local baseQuery
