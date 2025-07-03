@@ -26,7 +26,7 @@ Adding +10 Stats would override +14 Agility.
 
 The `item_enchantment_random_tiers` table defines the tiers. The script uses your character level to determine the **highest eligible tier**:
 - Tier 1 = Level 1+
-- Tier 2 = Level 40+
+- Tier 2 = Level 30+
 - Tier 3 = Level 60+
 - Tier 4 = Level 70+
 - Tier 5 = Level 80+
