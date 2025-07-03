@@ -35,7 +35,7 @@ Items are only eligible for enchantments of their class (WEAPON, ARMOR, or ANY).
 
 All enchantments are pulled from your SQL data. Weapon enchants like Windfury 2 are tagged as WEAPON and tier 3 — meaning they only become available at level 60+ and only apply to weapons.
 
-**Duplicate enchantments will never be applied** (e.g., you will not get Windfury 3 twice on the same item). Two similar but distinct enchants (like +43 and +44 spellpower) are allowed.
+**Duplicate enchantments will never be applied** (e.g., you will not get Windfury 3 twice on the same item). Two similar but distinct enchants (like +43 Spell Power and +44 Spell Power) are allowed on the same item.
 
 ### ⚠️ Additional Notes
 
