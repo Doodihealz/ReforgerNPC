@@ -9,6 +9,10 @@ local QUALITY_COST = {
     [5] = 1000000
 }
 
+local ALLOWED_IDS = {
+    [18706] = true
+}
+
 local EXCLUDED_IDS = {
     [4499]=true,[5571]=true,[5572]=true,[805]=true,[828]=true,[856]=true,[918]=true,[1939]=true,
     [4245]=true,[5764]=true,[5765]=true,[14155]=true,[14156]=true,[17966]=true,[19291]=true,
@@ -19,7 +23,9 @@ local EXCLUDED_IDS = {
 
 local function IsValidEquipable(item)
     if not item then return false end
-    if EXCLUDED_IDS[item:GetEntry()] then return false end
+    local entry = item:GetEntry()
+    if ALLOWED_IDS[entry] then return true end
+    if EXCLUDED_IDS[entry] then return false end
     local class = item:GetClass()
     local invType = item:GetInventoryType()
     return (class == 2 or class == 4) and (invType > 0 and invType < 24 or invType == 25 or invType == 26 or invType == 28)
@@ -83,14 +89,12 @@ local function RollEnchant(item, player, blacklist)
     local baseQuery
 
     if tier == 5 then
-        -- Tier 5 can use Tier 4 and 5
         if itemClass == "WEAPON" then
             baseQuery = "SELECT enchantID FROM item_enchantment_random_tiers WHERE tier IN (4,5) AND (class = 'WEAPON' OR class = 'ANY')"
         else
             baseQuery = "SELECT enchantID FROM item_enchantment_random_tiers WHERE tier IN (4,5) AND (class = '"..itemClass.."' OR class = 'ANY')"
         end
     else
-        -- Other tiers can only use their exact tier
         if itemClass == "WEAPON" then
             baseQuery = "SELECT enchantID FROM item_enchantment_random_tiers WHERE tier = "..tier.." AND (class = 'WEAPON' OR class = 'ANY')"
         else
