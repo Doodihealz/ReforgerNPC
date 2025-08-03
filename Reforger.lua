@@ -23,6 +23,7 @@ local EXCLUDED_IDS = {
 
 local function IsValidEquipable(item)
     if not item then return false end
+    if item:GetQuality() < 2 then return false end
     local entry = item:GetEntry()
     if ALLOWED_IDS[entry] then return true end
     if EXCLUDED_IDS[entry] then return false end
