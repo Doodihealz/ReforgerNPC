@@ -2,6 +2,8 @@
 
 A reforging NPC that applies **two random enchantments** to an equipped item. It uses a custom tier-based enchantment system to determine what's eligible at various player levels, and supports both armor and weapon enchantments — including support for Shaman imbues, poisons, and rare effects like Windfury or Mongoose.
 
+There's now an extra Random enchant script if you so desire. You'll need the sql table for the random enchants to work just like the reforger, but this allows random tier enchants to apply to looted items. Quest rewards still do not work yet.
+
 ### 💾 Installation
 
 1. Run `Reforger.sql` on your world database to create the reforging NPC.
