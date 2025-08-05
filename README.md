@@ -14,12 +14,12 @@ There's now an extra Random enchant script if you so desire. You'll need the sql
 When interacting with the NPC, the script lets the player select an eligible equipped item. The script applies up to 2 random enchantments directly to the existing item, **preserving all original item properties** including suffixes (like "of the Bear"), socketed gems, and other item characteristics.
 
 Each item has multiple enchant slots:
-- **Slot 0-2** are used for the random enchantments (+10 Stats, Crusader, etc.)
+- **Slot 1 and 2** are used for the random enchantments (+10 Stats, Crusader, etc.)
 - Temporary effects like Shaman imbues or poisons may still override these enchantments when applied
 
 Example:  
-`Slot 0: +14 Agility`  
-`Slot 1: +8 Stamina`  
+`Slot 1: +14 Agility`  
+`Slot 2: +8 Stamina`  
 
 Casting Flametongue would override one of these enchantments.  
 Adding a permanent enchant like +10 Stats would override one of these slots.
