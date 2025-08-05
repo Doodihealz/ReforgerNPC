@@ -119,6 +119,34 @@ local function RollEnchant(item, player, blacklist)
     return nil
 end
 
+local function ApplyEnchantsDirectly(item, player)
+    if not item or not player then return 0 end
+    
+    local applied = 0
+    local appliedEnchants = {}
+
+    for slotIndex = 0, 2 do
+        if applied < 2 and math.random(5) >= 1 then
+            local attempt = 0
+            local maxAttempts = 10
+            local enchantId
+
+            repeat
+                enchantId = RollEnchant(item, player, appliedEnchants)
+                attempt = attempt + 1
+            until (enchantId and not appliedEnchants[enchantId]) or attempt >= maxAttempts
+
+            if enchantId and not appliedEnchants[enchantId] then
+                item:SetEnchantment(enchantId, slotIndex)
+                appliedEnchants[enchantId] = true
+                applied = applied + 1
+            end
+        end
+    end
+    
+    return applied
+end
+
 function Reforger_OnGossipHello(event, player, creature)
     local items = GetEligibleItems(player)
     player:GossipClearMenu()
@@ -166,14 +194,12 @@ function Reforger_OnGossipSelect(event, player, creature, sender, intid, code)
     end
 
     local selectedItem
-    local equipSlot
     local itemGUID = intid
 
     for slot = 0, 18 do
         local item = player:GetItemByPos(255, slot)
         if item and item:GetGUIDLow() == itemGUID and IsValidEquipable(item) then
             selectedItem = item
-            equipSlot = slot
             break
         end
     end
@@ -184,15 +210,8 @@ function Reforger_OnGossipSelect(event, player, creature, sender, intid, code)
         return
     end
 
-    local entry = selectedItem:GetEntry()
     local quality = selectedItem:GetQuality()
     local cost = QUALITY_COST[quality] or 100000
-
-    if player:GetItemCount(entry) < 1 then
-        SendYellowMessage(player, "You no longer have the item.")
-        player:GossipComplete()
-        return
-    end
 
     if player:GetCoinage() < cost then
         SendYellowMessage(player, "You don't have enough gold.")
@@ -200,43 +219,9 @@ function Reforger_OnGossipSelect(event, player, creature, sender, intid, code)
         return
     end
 
-    player:RemoveItem(entry, 1)
-
-    local newItem = player:AddItem(entry, 1)
-    if not newItem then
-        player:AddItem(entry, 1)
-        SendYellowMessage(player, "Failed to return reforged item.")
-        player:GossipComplete()
-        return
-    end
-
-    local applied = 0
-    local appliedEnchants = {}
-
-    for slotIndex = 0, 2 do
-        if applied < 2 and math.random(5) >= 1 then
-            local attempt = 0
-            local maxAttempts = 10
-            local enchantId
-
-            repeat
-                enchantId = RollEnchant(newItem, player, appliedEnchants)
-                attempt = attempt + 1
-            until (enchantId and not appliedEnchants[enchantId]) or attempt >= maxAttempts
-
-            if enchantId and not appliedEnchants[enchantId] then
-                newItem:SetEnchantment(enchantId, slotIndex)
-                appliedEnchants[enchantId] = true
-                applied = applied + 1
-            end
-        end
-    end
-
+    local applied = ApplyEnchantsDirectly(selectedItem, player)
+    
     player:ModifyMoney(-cost)
-
-    if equipSlot then
-        player:EquipItem(newItem, equipSlot)
-    end
 
     SendYellowMessage(player, "Item reforged with new enchantments!")
     Reforger_OnGossipHello(nil, player, creature)
