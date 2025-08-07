@@ -43,17 +43,22 @@ local function RollEnchant(item, player, blacklist)
     return nil
 end
 
-local function DoEnchantOnItem(item, player)
+local function DoEnchantOnItem(item, player, source)
     if not item or not player then return end
-    if item:GetInventoryType() == 0 then return end
-    if item:GetQuality() < 2 then return end
+    
+    local invType = item:GetInventoryType()
+    local quality = item:GetQuality()
+    
+    if invType == 0 then return end
+    if quality < 2 then return end
+    
     local applied = 0
     local appliedEnchants = {}
     local maxAttempts = 5
+    
     for slot = 0, 2 do
         if applied >= 2 then break end
-        if math.random(5) < 1 then
-        else
+        if math.random(5) >= 1 then
             local enchantId
             for _ = 1, maxAttempts do
                 enchantId = RollEnchant(item, player, appliedEnchants)
@@ -68,17 +73,28 @@ local function DoEnchantOnItem(item, player)
             end
         end
     end
+    
+    if applied > 0 then
+        player:SendBroadcastMessage(string.format("|cff00ff00[Random Enchant]|r %s item received %d enchantment%s!", 
+            source, applied, applied == 1 and "" or "s"))
+    end
 end
 
 local function OnLootItem(event, player, item, count)
     if not player or not item then return end
-    DoEnchantOnItem(item, player)
+    DoEnchantOnItem(item, player, "Looted")
 end
 
-local function OnQuestReward(event, player, quest, item)
+local function OnCreateItem(event, player, item, count)
     if not player or not item then return end
-    DoEnchantOnItem(item, player)
+    DoEnchantOnItem(item, player, "Crafted")
+end
+
+local function OnQuestReward(event, player, item, count)
+    if not player or not item then return end
+    DoEnchantOnItem(item, player, "Quest")
 end
 
 RegisterPlayerEvent(32, OnLootItem)
+RegisterPlayerEvent(52, OnCreateItem)
 RegisterPlayerEvent(51, OnQuestReward)
