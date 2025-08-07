@@ -7,22 +7,18 @@ local RANGED_AP_IDS = {
 
 local function RollEnchant(item, player, blacklist)
     if not item or not player then return nil end
-
     local itemClassId = item:GetClass()
     local itemClass   = (itemClassId == 2 and "WEAPON")
                      or (itemClassId == 4 and "ARMOR")
                      or "ANY"
-
     local level = player:GetLevel()
     local tier  = (level >= 80 and 5)
                or (level >= 70 and 4)
                or (level >= 60 and 3)
                or (level >= 30 and 2)
                or 1
-
     local tierSQL = (tier == 5) and "tier IN (4,5)" or ("tier = "..tier)
     local preferWeapon = (itemClass == "WEAPON") and (math.random(100) <= 10)
-
     local classSQL
     if itemClass == "WEAPON" then
         classSQL = preferWeapon and "class = 'WEAPON'"
@@ -30,15 +26,12 @@ local function RollEnchant(item, player, blacklist)
     else
         classSQL = string.format("class IN ('%s','ANY')", itemClass)
     end
-
     local query = string.format(
         "SELECT enchantID FROM item_enchantment_random_tiers " ..
         "WHERE %s AND %s ORDER BY RAND()",
         tierSQL, classSQL)
-
     local res = WorldDBQuery(query)
     if not res then return nil end
-
     repeat
         local id = res:GetUInt32(0)
         if not blacklist[id] then
@@ -47,20 +40,16 @@ local function RollEnchant(item, player, blacklist)
             end
         end
     until not res:NextRow()
-
     return nil
 end
 
 local function DoEnchantOnItem(item, player)
     if not item or not player then return end
     if item:GetInventoryType() == 0 then return end
-
     if item:GetQuality() < 2 then return end
-
     local applied = 0
     local appliedEnchants = {}
     local maxAttempts = 5
-
     for slot = 0, 2 do
         if applied >= 2 then break end
         if math.random(5) < 1 then
@@ -81,10 +70,15 @@ local function DoEnchantOnItem(item, player)
     end
 end
 
-
 local function OnLootItem(event, player, item, count)
     if not player or not item then return end
     DoEnchantOnItem(item, player)
 end
 
+local function OnQuestReward(event, player, quest, item)
+    if not player or not item then return end
+    DoEnchantOnItem(item, player)
+end
+
 RegisterPlayerEvent(32, OnLootItem)
+RegisterPlayerEvent(51, OnQuestReward)
