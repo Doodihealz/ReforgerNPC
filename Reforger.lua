@@ -61,6 +61,7 @@ local CASTER_OIL_WEIGHT = 3
 local CASTER_SP_INT_WEIGHT = 2
 local HUNTER_ROGUE_AGI_BONUS = 3
 local WARRIOR_STR_BONUS = 2
+local HUNTER_RAP_BONUS = 5
 local ACQ_MAX_SLOTS = 2
 local ACQ_ATTEMPTS_PER_SLOT = 8
 local ACQ_ROLL_CHANCE_DENOM = 1
@@ -263,6 +264,7 @@ local function buildPool(item, player, blacklist, tier, weaponBiasProb)
                     end
                     if (playerClass == 3 or playerClass == 4) and statName == "Agility" then w = w + HUNTER_ROGUE_AGI_BONUS end
                     if playerClass == 1 and statName == "Strength" then w = w + WARRIOR_STR_BONUS end
+                    if playerClass == 3 and RANGED_AP_IDS[id] then w = w + HUNTER_RAP_BONUS end
                     if w > 0 then t_insert(pool, { id = id, w = w }); total = total + w end
                 end
             end
@@ -426,13 +428,6 @@ function Reforger_OnGossipSelect(event, player, creature, sender, intid, code)
     local quality = selectedItem:GetQuality()
     local cost = QUALITY_COST[quality] or 100000
 
-    local applied, descriptions = ApplyEnchantsDirectly(selectedItem, player)
-    if applied == 0 then
-        player:SendAreaTriggerMessage("Reforge failed: No enchantments applied.")
-        player:GossipComplete()
-        playerEligibleMap[pGUID] = nil
-        return
-    end
     if player:GetCoinage() < cost then
         SendYellowMessage(player, "You don't have enough gold.")
         player:GossipComplete()
@@ -441,6 +436,15 @@ function Reforger_OnGossipSelect(event, player, creature, sender, intid, code)
     end
 
     player:ModifyMoney(-cost)
+    local applied, descriptions = ApplyEnchantsDirectly(selectedItem, player)
+    if applied == 0 then
+        player:ModifyMoney(cost)
+        player:SendAreaTriggerMessage("Reforge failed: No enchantments applied.")
+        player:GossipComplete()
+        playerEligibleMap[pGUID] = nil
+        return
+    end
+
     local lines = {}
     for i = 1, #descriptions do
         lines[i] = ColorizeEnchantment(descriptions[i])
