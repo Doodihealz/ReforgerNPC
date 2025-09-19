@@ -49,5 +49,5 @@ Items are only eligible for enchantments of their class (WEAPON, ARMOR, or ANY).
 - Adjust NPC ID or excluded item list freely.
 
 ### 🧾 Credit
-- You are free to use and modify this for your server. If you do release a variant of this script you **must** provide it for free back into the modding scene! I ask you to kindly credit me if you do (Doodihealz / Corey) 
+- You are free to use and modify this for your server. If you do release a variant of this script I ask that you provide it for free back into the modding scene! I ask you to kindly credit me if you do (Doodihealz / Corey) 
 - I will only support unmodified versions. For questions, visit the WoW Modding Community Discord release thread: https://discord.com/channels/407664041016688662/1366126332702097529
