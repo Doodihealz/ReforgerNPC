@@ -13,7 +13,7 @@ There's an optional Random enchantment section of the script available. You'll n
 3. Place `Reforger.lua` inside your server's `lua_scripts/` directory.
 
 ### 🔧 How It Works
-When interacting with the NPC, the script lets the player select an eligible equipped item. The script applies up to 2 random enchantments directly to the existing item, **preserving all original item properties** including suffixes (like "of the Bear"), socketed gems, and other item characteristics.
+When interacting with the NPC, the script lets the player select an eligible equipped item. The script applies up to 2 random enchantments directly to the existing item, **preserving all original item properties** including suffixes (like "of the Bear"), socketed gems, and other item characteristics. Enchantment costs scale with player level. Higher level means more costly enchantments.
 
 Each item has multiple enchant slots:
 - **Slot 1 and 2** are used for the random enchantments (+10 Stats, Crusader, etc.)
