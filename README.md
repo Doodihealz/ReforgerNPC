@@ -23,8 +23,8 @@ Example:
 `Slot 1: +14 Agility`  
 `Slot 2: +8 Stamina`  
 
-Casting Flametongue would override one of these enchantments.  
-Adding a permanent enchant like +10 Stats would override one of these slots.
+Casting Flametongue or Poisons would override +8 Stamina.  
+Adding a permanent enchant like +10 Stats would override +14 Agility.
 
 ### 📊 Enchantment Tier System  
 The `item_enchantment_random_tiers` table defines the tiers. The script uses your character level to determine the **highest eligible tier**:
