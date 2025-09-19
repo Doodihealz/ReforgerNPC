@@ -8,7 +8,7 @@ There's an optional Random enchantment section of the script available. You'll n
 **Big thanks to Xepic90 on the Azerothcore Discord for helping solve the suffix issue!**
 
 ### 💾 Installation
-1. Run `Reforger.sql` on your world database to create the reforging NPC.
+1. Make an npc in creature_template id 200004 named Reforger with the IconName as Speak. Add npc id 200004 to creature_template_model with display id 21078. You can use any model you desire or any npc id. Just update the script to hook into the new id.
 2. Run `item_enchantment_random_tiers.sql` to install the tiered enchantment definitions.  
 3. Place `Reforger.lua` inside your server's `lua_scripts/` directory.
 
