@@ -188,9 +188,7 @@ local function buildPool(item, player, blacklist, tier, weaponBiasProb, restrict
     local pool, total = {}, 0
 
     local preferredStatKey = nil
-    if blacklist and next(blacklist) ~= nil then
-        for id,_ in pairs(blacklist) do preferredStatKey = getStatKey(id); if preferredStatKey then break end end
-    end
+    if blacklist and next(blacklist) ~= nil then for id,_ in pairs(blacklist) do preferredStatKey = getStatKey(id); if preferredStatKey then break end end end
 
     local spSynergyActive = hasChosenSpellPower(blacklist)
 
@@ -207,10 +205,7 @@ local function buildPool(item, player, blacklist, tier, weaponBiasProb, restrict
         if NO_OIL_CLASSES[playerClass] and isOil(id) then return end
         if (playerClass == 5 or playerClass == 8 or playerClass == 9) and isRockbiterOrVenomhide(id) then return end
         local w = baseWeight
-        if caster then
-            if itemClass == "WEAPON" and isOil(id) then w = w + CASTER_OIL_WEIGHT end
-            if isSPorInt(id) then w = w + CASTER_SP_INT_WEIGHT end
-        end
+        if caster then if itemClass == "WEAPON" and isOil(id) then w = w + CASTER_OIL_WEIGHT end; if isSPorInt(id) then w = w + CASTER_SP_INT_WEIGHT end end
         if (playerClass == 3 or playerClass == 4) and statName == "Agility" then w = w + HUNTER_ROGUE_AGI_BONUS end
         if playerClass == 1 and statName == "Strength" then w = w + WARRIOR_STR_BONUS end
         if playerClass == 3 and hasRangedAP(id) then w = w + HUNTER_RAP_BONUS end
@@ -301,21 +296,36 @@ local function ApplyEnchantsDirectly(item, player)
     return applied, descriptions
 end
 
+local function TopEnchantsForStat(item, player, statKey, n)
+    local tier = levelToTier(player:GetLevel())
+    local pool = buildPool(item, player, {}, tier, nil, statKey)
+    if not pool or #pool==0 then return {} end
+    local arr = {}
+    for i=1,#pool do
+        local id = pool[i].id
+        local _, val = getParsedStat(id)
+        t_insert(arr, { id=id, v=val or -1 })
+    end
+    table.sort(arr, function(a,b) return a.v > b.v end)
+    local out, used = {}, {}
+    for i=1,#arr do
+        local id = arr[i].id
+        if not used[id] then t_insert(out, id); used[id]=true end
+        if #out>=n then break end
+    end
+    return out
+end
+
 local function ApplyEnchantsDirectlyRestricted(item, player, statKey)
     seedRng()
     if not item or not player then return 0, {} end
-    local applied, appliedEnchants, descriptions = 0, {}, {}
-    local isWeapon = (item:GetClass()==2)
-    for i=1,#WRITE_SLOTS_REFORGE do
-        if applied>=2 then break end
+    local ids = TopEnchantsForStat(item, player, statKey, 2)
+    if #ids==0 then return 0, {} end
+    local applied, descriptions = 0, {}
+    for i=1,math.min(2, #ids) do
         local slotIndex = WRITE_SLOTS_REFORGE[i]
-        local attempt, maxAttempts = 0, 30
-        local prefer = isWeapon and weaponBias(slotIndex) or nil
-        local enchantId
-        repeat enchantId = RollEnchant(item, player, appliedEnchants, prefer, statKey); attempt = attempt + 1 until (enchantId and not appliedEnchants[enchantId]) or attempt>=maxAttempts
-        if enchantId and not appliedEnchants[enchantId] and safeSetEnchant(item, enchantId, slotIndex) then
-            appliedEnchants[enchantId]=true
-            t_insert(descriptions, enchantNameCache[enchantId] or "Unknown")
+        if ids[i] and safeSetEnchant(item, ids[i], slotIndex) then
+            t_insert(descriptions, enchantNameCache[ids[i]] or "Unknown")
             applied = applied + 1
         end
     end
@@ -379,7 +389,7 @@ local function OpenStatMenu(player, creature, item)
     pendingStats[g] = stats
     player:GossipClearMenu()
     player:GossipMenuAddItem(9, "|cff000000[Choose Stat]|r", 9999, 0)
-    if #stats==0 then player:GossipMenuAddItem(0, "No applicable stats found", 7001, 0) else for i=1,#stats do player:GossipMenuAddItem(0, stats[i].name, 6000, i) end end
+    if #stats==0 then player:GossipMenuAddItem(0, "No applicable stats found", 7001, 0) else for i=1,#stats do player:GossipMenuAddItem(0, stats[i].name.." (best 2 rolls)", 6000, i) end end
     player:GossipMenuAddItem(0, "Back", 7000, 0)
     player:GossipSendMenu(1, creature)
 end
@@ -423,7 +433,6 @@ function Reforger_OnGossipSelect(event, player, creature, sender, intid, code)
         local stats = pendingStats[g] or {}
         local sel = stats[intid]
         if not sel then SendYellowMessage(player, "Invalid stat."); Reforger_OnGossipHello(nil, player, creature); return end
-        local slotMap = playerEligibleMap[g] or {}
         local itemGuid = pendingItem[g]
         local selectedItem
         for s=0,18 do local it=player:GetItemByPos(255,s); if it and it:GetGUIDLow()==itemGuid and IsValidEquipable(it) then selectedItem=it; break end end
