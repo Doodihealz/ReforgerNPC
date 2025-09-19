@@ -3,6 +3,7 @@ local RNG_SEEDED = false
 local NPC_ID = 200004
 
 local QUALITY_COST = { [0]=10000,[1]=20000,[2]=50000,[3]=100000,[4]=250000,[5]=1000000 }
+local MAX_LEVEL = 80
 
 local ALLOWED_IDS = { [18706]=true }
 local EXCLUDED_IDS = { [4499]=true,[5571]=true,[5572]=true,[805]=true,[828]=true,[856]=true,[918]=true,[1939]=true,[4245]=true,[5764]=true,[5765]=true,[14155]=true,[14156]=true,[17966]=true,[19291]=true,[21841]=true,[41599]=true,[41729]=true,[43345]=true,[43575]=true,[43958]=true,[44751]=true,[45854]=true,[49295]=true,[38346]=true,[38347]=true,[38348]=true,[38349]=true,[39489]=true,[41600]=true,[34845]=true,[38225]=true,[20400]=true,[22243]=true,[22244]=true,[44447]=true }
@@ -68,7 +69,7 @@ local function seedRng() if RNG_SEEDED then return end RNG_SEEDED=true m_random(
 
 local function parseStatValue(name) if not name then return nil,nil end local num,rest=name:match("([%+%-]?%d+)%s+(.+)"); if not num or not rest then return nil,nil end local v=tonumber(num); if not v then return nil,nil end rest=rest:gsub("^%s+",""):gsub("%s+$",""); return rest,v end
 local function getParsedStat(id) local c=parsedStatCache[id]; if c then return c.name,c.val end local nm=enchantNameCache[id]; if not nm then parsedStatCache[id]={}; return nil,nil end local stat,val=parseStatValue(nm); parsedStatCache[id]={name=stat,val=val}; return stat,val end
-local function getStatKey(id) local statName = getParsedStat(id); if not statName then return nil end return (statName or ""):lower():gsub("^%s+",""):gsub("%s+$","") end
+local function getStatKey(id) local statName = getParsedStat(id); if not statName then return nil end return (statName or ""):lower():gsub("^%s+"," "):gsub("%s+$","") end
 
 local function LoadEnchantCache()
     local q = WorldDBQuery("SELECT enchantID, tier, class, comment FROM item_enchantment_random_tiers")
@@ -95,6 +96,16 @@ local function IsValidEquipable(item)
     local class = item:GetClass()
     local invType = item:GetInventoryType()
     return (class == 2 or class == 4) and ((invType > 0 and invType < 24) or invType == 25 or invType == 26 or invType == 28)
+end
+
+local function GetScaledCost(base, level)
+    local L = level or MAX_LEVEL
+    if L < 1 then L = 1 end
+    if L > MAX_LEVEL then L = MAX_LEVEL end
+    local scale = L / MAX_LEVEL
+    local cost = math.floor(base * scale)
+    if cost < 0 then cost = 0 end
+    return cost
 end
 
 local function FormatGold(cost)
@@ -374,7 +385,8 @@ function Reforger_OnGossipHello(event, player, creature)
         if #groupItems>0 then
             player:GossipMenuAddItem(9, "|cff000000["..groupName.."]|r", 9999, 0)
             for _, item in ipairs(groupItems) do
-                local cost = QUALITY_COST[item:GetQuality()] or 100000
+                local base = QUALITY_COST[item:GetQuality()] or 100000
+                local cost = GetScaledCost(base, player:GetLevel())
                 player:GossipMenuAddItem(0, "  "..item:GetItemLink().." - "..FormatGold(cost), 1, item:GetGUIDLow())
             end
         end
@@ -389,7 +401,14 @@ local function OpenStatMenu(player, creature, item)
     pendingStats[g] = stats
     player:GossipClearMenu()
     player:GossipMenuAddItem(9, "|cff000000[Choose Stat]|r", 9999, 0)
-    if #stats==0 then player:GossipMenuAddItem(0, "No applicable stats found", 7001, 0) else for i=1,#stats do player:GossipMenuAddItem(0, stats[i].name.." (best 2 rolls)", 6000, i) end end
+    if #stats==0 then
+        player:GossipMenuAddItem(0, "No applicable stats found", 7001, 0)
+    else
+        for i=1,#stats do
+            local colored = STAT_COLORS[stats[i].name] or ("|cffffffff"..stats[i].name.."|r")
+            player:GossipMenuAddItem(0, colored.." (best 2 rolls)", 6000, i)
+        end
+    end
     player:GossipMenuAddItem(0, "Back", 7000, 0)
     player:GossipSendMenu(1, creature)
 end
@@ -415,7 +434,8 @@ function Reforger_OnGossipSelect(event, player, creature, sender, intid, code)
         if not selectedItem then SendYellowMessage(player, "Item not found."); player:GossipComplete(); playerEligibleMap[pGUID]=nil; return end
         if (selectedItem.IsInTrade and selectedItem:IsInTrade()) or (selectedItem.IsBag and selectedItem:IsBag()) then SendYellowMessage(player, "That item cannot be reforged right now."); player:GossipComplete(); playerEligibleMap[pGUID]=nil; return end
         if manual then OpenStatMenu(player, creature, selectedItem); return end
-        local cost = QUALITY_COST[selectedItem:GetQuality()] or 100000
+        local base = QUALITY_COST[selectedItem:GetQuality()] or 100000
+        local cost = GetScaledCost(base, player:GetLevel())
         if player:GetCoinage()<cost then SendYellowMessage(player, "You don't have enough gold."); player:GossipComplete(); playerEligibleMap[pGUID]=nil; return end
         player:ModifyMoney(-cost)
         local applied, descriptions = ApplyEnchantsDirectly(selectedItem, player)
@@ -437,7 +457,8 @@ function Reforger_OnGossipSelect(event, player, creature, sender, intid, code)
         local selectedItem
         for s=0,18 do local it=player:GetItemByPos(255,s); if it and it:GetGUIDLow()==itemGuid and IsValidEquipable(it) then selectedItem=it; break end end
         if not selectedItem then SendYellowMessage(player, "Item not found."); Reforger_OnGossipHello(nil, player, creature); return end
-        local cost = QUALITY_COST[selectedItem:GetQuality()] or 100000
+        local base = QUALITY_COST[selectedItem:GetQuality()] or 100000
+        local cost = GetScaledCost(base, player:GetLevel())
         if player:GetCoinage()<cost then SendYellowMessage(player, "You don't have enough gold."); Reforger_OnGossipHello(nil, player, creature); return end
         player:ModifyMoney(-cost)
         local applied, descriptions = ApplyEnchantsDirectlyRestricted(selectedItem, player, sel.key)
