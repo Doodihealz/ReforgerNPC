@@ -529,6 +529,94 @@ local function ComputeKitCost(player, item, kit)
     return baseCost + surcharge
 end
 
+local function ApplyKitEntries(player, item, kit, label, suppressMessages, chargeGold)
+    if not player or not item or not kit or #kit == 0 then
+        if not suppressMessages then
+            SendError(player, "No enchants provided.")
+        end
+        return 0
+    end
+    local applied = 0
+    local shouldCharge = chargeGold ~= false
+    local cost = 0
+    if shouldCharge then
+        cost = ComputeKitCost(player, item, kit)
+        if player:GetCoinage() < cost then
+            SendError(player, "You don't have enough gold to apply this kit.")
+            return 0
+        end
+    end
+    local appliedIds = {}
+    for _, entry in ipairs(kit) do
+        if not appliedIds[entry.id] and safeSetEnchant(item, entry.id, entry.slot) then
+            appliedIds[entry.id] = true
+            applied = applied + 1
+        end
+    end
+    if applied == 0 then
+        if not suppressMessages then
+            SendError(player, string.format("No enchants from %s were applied.", label or "kit"))
+        end
+        return 0
+    end
+    if shouldCharge and cost > 0 then
+        player:ModifyMoney(-cost)
+    end
+    if not suppressMessages then
+        local itemLink = (item and item.GetItemLink and item:GetItemLink()) or (item and item.GetName and item:GetName()) or "item"
+        local costNote = (shouldCharge and cost > 0) and (" Cost: "..FormatGold(cost)) or ""
+        SendSuccess(player, string.format("Applied %s to %s (%d enchant(s)).%s", label or "kit", itemLink, applied, costNote))
+    end
+    InvalidateStatCacheForItem(item)
+    if SAVE_ITEM_IMMEDIATELY and item.SaveToDB then item:SaveToDB() end
+    return applied
+end
+
+local function ApplyKitTableToAllEquipped(player, kit, label)
+    if not kit or #kit == 0 then
+        SendError(player, "No enchants supplied.")
+        return false
+    end
+    local allowed, badTier, playerTier = KitUsableByPlayer(player, kit)
+    if not allowed then
+        SendError(player, string.format("Kit contains tier %d enchants but you only have access up to tier %d. Level up before using this kit.", badTier or 0, playerTier or 0))
+        return false
+    end
+    local candidates = {}
+    local totalProjectedCost = 0
+    for slot=0,18 do
+        local item = player:GetItemByPos(255, slot)
+        if item and IsValidEquipable(item) and item:GetQuality() >= 2 then
+            local cost = ComputeKitCost(player, item, kit)
+            candidates[#candidates+1] = { item = item, cost = cost }
+            totalProjectedCost = totalProjectedCost + cost
+        end
+    end
+    if totalProjectedCost > 0 and player:GetCoinage() < totalProjectedCost then
+        SendError(player, string.format("You need %s to apply that kit to every item.", FormatGold(totalProjectedCost)))
+        return false
+    end
+    local affected = 0
+    local totalCharged = 0
+    for _, entry in ipairs(candidates) do
+        local applied = ApplyKitEntries(player, entry.item, kit, label or "kit", true, false)
+        if applied > 0 then
+            affected = affected + 1
+            totalCharged = totalCharged + entry.cost
+        end
+    end
+    if affected == 0 then
+        SendError(player, string.format("No eligible items to apply %s.", label or "kit"))
+    else
+        if totalCharged > 0 then
+            player:ModifyMoney(-totalCharged)
+        end
+        local costNote = (totalCharged > 0) and (" Cost: "..FormatGold(totalCharged)) or ""
+        SendSuccess(player, string.format("Applied %s to %d item(s).%s", label or "kit", affected, costNote))
+    end
+    return false
+end
+
 local function AnnounceStartupStatus()
     print(string.format("[Reforger] Startup complete: %d enchant(s) cached, %d kit(s) loaded.", LOADED_ENCHANT_COUNT, LOADED_KIT_COUNT))
 end
@@ -609,41 +697,8 @@ local function ApplyEnchantKit(player, item, kitKeyRaw, suppressMessages, charge
         SendError(player, string.format("Kit contains tier %d enchants but you only have access up to tier %d. Level up before using this kit.", badTier or 0, playerTier or 0))
         return 0
     end
-    local applied = 0
-    local shouldCharge = chargeGold ~= false
-    local cost = 0
-    if shouldCharge then
-        cost = ComputeKitCost(player, item, kit)
-        if player:GetCoinage() < cost then
-            SendError(player, "You don't have enough gold to apply this kit.")
-            return 0
-        end
-    end
-    local appliedIds = {}
-    for _, entry in ipairs(kit) do
-        if not appliedIds[entry.id] and safeSetEnchant(item, entry.id, entry.slot) then
-            appliedIds[entry.id] = true
-            applied = applied + 1
-        end
-    end
-    if applied == 0 then
-        if not suppressMessages then
-            SendError(player, "No enchants from kit "..tostring(kitKeyRaw).." were applied.")
-        end
-        return 0
-    end
-    if shouldCharge and cost > 0 and player then
-        player:ModifyMoney(-cost)
-    end
-    if not suppressMessages then
-        local label = ENCHANT_KIT_LABELS[kitKey] or kitKeyRaw
-        local itemLink = (item and item.GetItemLink and item:GetItemLink()) or (item and item.GetName and item:GetName()) or "item"
-        local costNote = (shouldCharge and cost > 0) and (" Cost: "..FormatGold(cost)) or ""
-        SendSuccess(player, string.format("Applied kit %s to %s (%d enchant(s)).%s", label, itemLink, applied, costNote))
-    end
-    InvalidateStatCacheForItem(item)
-    if SAVE_ITEM_IMMEDIATELY and item.SaveToDB then item:SaveToDB() end
-    return applied
+    local label = ENCHANT_KIT_LABELS[kitKey] or kitKeyRaw
+    return ApplyKitEntries(player, item, kit, label, suppressMessages, chargeGold)
 end
 
 local function ApplyKitToAllEquipped(player, kitKeyRaw)
@@ -657,45 +712,8 @@ local function ApplyKitToAllEquipped(player, kitKeyRaw)
         SendError(player, "Unknown kit: "..tostring(kitKeyRaw))
         return false
     end
-    local allowed, badTier, playerTier = KitUsableByPlayer(player, kit)
-    if not allowed then
-        SendError(player, string.format("Kit contains tier %d enchants but you only have access up to tier %d. Level up before using this kit.", badTier or 0, playerTier or 0))
-        return false
-    end
-    local candidates = {}
-    local totalProjectedCost = 0
-    for slot=0,18 do
-        local item = player:GetItemByPos(255, slot)
-        if item and IsValidEquipable(item) and item:GetQuality() >= 2 then
-            local cost = ComputeKitCost(player, item, kit)
-            candidates[#candidates+1] = { item = item, cost = cost }
-            totalProjectedCost = totalProjectedCost + cost
-        end
-    end
-    if totalProjectedCost > 0 and player:GetCoinage() < totalProjectedCost then
-        SendError(player, string.format("You need %s to apply that kit to every item.", FormatGold(totalProjectedCost)))
-        return false
-    end
-    local affected = 0
-    local totalCharged = 0
-    for _, entry in ipairs(candidates) do
-        local applied = ApplyEnchantKit(player, entry.item, kitKey, true, false)
-        if applied > 0 then
-            affected = affected + 1
-            totalCharged = totalCharged + entry.cost
-        end
-    end
-    if affected == 0 then
-        SendError(player, "No eligible items to apply kit "..tostring(kitKeyRaw)..".")
-    else
-        if totalCharged > 0 then
-            player:ModifyMoney(-totalCharged)
-        end
-        local label = ENCHANT_KIT_LABELS[kitKey] or kitKeyRaw
-        local costNote = (totalCharged > 0) and (" Cost: "..FormatGold(totalCharged)) or ""
-        SendSuccess(player, string.format("Applied kit %s to %d item(s).%s", label, affected, costNote))
-    end
-    return false
+    local label = ENCHANT_KIT_LABELS[kitKey] or kitKeyRaw
+    return ApplyKitTableToAllEquipped(player, kit, label)
 end
 local function CloneStatList(list)
     local out = {}
@@ -746,7 +764,8 @@ local function ShowEnchantHelp(player)
         "|cffffcc00.enchant <itemEntry> <enchantId> <slot>|r - same as above, using the numeric item entry.",
         "|cffffcc00.enchant kit <enchantId> <slot> ... <kitName>|r - save a kit (name can be words or numbers).",
         "|cffffcc00.enchant [itemLink] kit <kitName>|r - apply a saved kit to one item.",
-        "|cffffcc00.enchant all <kitName>|r - apply a kit to every uncommon+ item you're wearing.",
+        "|cffffcc00.enchant all <kitName>|r - apply a saved kit to every uncommon+ item you're wearing.",
+        "|cffffcc00.enchant all <enchantId slot ...>|r - apply the specified enchants to every uncommon+ item you're wearing.",
         "|cffffcc00.remove enchant [itemLink]|r - strip every enchant from one item.",
         "|cffffcc00.remove enchant all|r - strip every enchant from your equipped items.",
         "|cffffcc00.clearkit <kitName>|r removes a kit, |cffffcc00.clearkit all|r then |cffffcc00.clearkit all confirm|r wipes them all.",
@@ -1442,13 +1461,55 @@ local function HandleEnchantCommand(player, rest)
         return DefineEnchantKit(player, kitArgs)
     end
     if lowerRest:sub(1,3) == "all" and (rest:len() == 3 or rest:sub(4,4) == " ") then
-        local kitIdStr = rest:match("^all%s+(.+)$")
-        if not kitIdStr then
-            SendError(player, "Usage: .enchant all <kitName>")
+        local allArgs = rest:match("^all%s+(.+)$")
+        if not allArgs then
+            SendError(player, "Usage: .enchant all <kitName|enchantId slot ...>")
             return false
         end
-        kitIdStr = kitIdStr:gsub("^%s+", ""):gsub("%s+$", "")
-        return ApplyKitToAllEquipped(player, kitIdStr)
+        allArgs = allArgs:gsub("^%s+", ""):gsub("%s+$", "")
+        if allArgs == "" then
+            SendError(player, "Usage: .enchant all <kitName|enchantId slot ...>")
+            return false
+        end
+        local tokens = {}
+        for token in allArgs:gmatch("%S+") do
+            tokens[#tokens+1] = token
+        end
+        local numericTokens = true
+        for i=1,#tokens do
+            if not tonumber(tokens[i]) then
+                numericTokens = false
+                break
+            end
+        end
+        if numericTokens and #tokens >= 2 then
+            if #tokens % 2 ~= 0 then
+                SendError(player, "Inline .enchant all requires enchant/slot pairs (e.g., 350 0 354 1).")
+                return false
+            end
+            local inlineKit = {}
+            local seenInline = {}
+            for i=1,#tokens,2 do
+                local enchantId = tonumber(tokens[i])
+                local slotIndex = tonumber(tokens[i+1])
+                if not enchantId or enchantId <= 0 then
+                    SendError(player, "Invalid enchant ID: "..tostring(tokens[i]))
+                    return false
+                end
+                if slotIndex ~= 0 and slotIndex ~= 1 then
+                    SendError(player, "Invalid slot: "..tostring(tokens[i+1]).." (use 0 or 1)")
+                    return false
+                end
+                if seenInline[enchantId] then
+                    SendError(player, string.format("Duplicate enchant %d detected.", enchantId))
+                    return false
+                end
+                seenInline[enchantId] = true
+                inlineKit[#inlineKit+1] = { id = enchantId, slot = slotIndex }
+            end
+            return ApplyKitTableToAllEquipped(player, inlineKit, "custom kit")
+        end
+        return ApplyKitToAllEquipped(player, allArgs)
     end
     local descriptor
     local remainder
