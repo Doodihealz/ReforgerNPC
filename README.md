@@ -4,6 +4,7 @@ A reforging NPC that applies **two random enchantments** to an equipped item. It
 ⭐IMPORTANT REFERENCE⭐
 - https://wowpedia.fandom.com/wiki/EnchantId
 - This is the website I use to find the enchantment ids. Edit the sql table using these ids.
+- Thanks to wowpedia for their references and work!
 
 There is now also a manual mode which you can easily toggle on or off in the npc gossip selection. It always applies the 2 highest rolls of a single stat onto an item.
 
