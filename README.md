@@ -53,7 +53,7 @@ Items are only eligible for enchantments of their class (WEAPON, ARMOR, or ANY).
 - **Added a .enchant command**: Players can manually enchant slot 0 or slot 1 of an item with the actual enchantment id in the sql table, allowing for extreme fine tuning of enchantments.
 - **Added the ability to make kits**: Players can now create a kit with a name or number value and apply said kit to an item, or on all items they have equipped, using the .enchant kit all feature! Example: .enchant kit 3321 0 3322 1 Samplename. 0 is for slot 0 and 1 is for slot 1.
 - You may now also delete kits. .clearkit kitname. You can also get a fresh kit start by typing .clearkit all. This will ask for a confirmation but it wipes all existing kits. You are not able to name a kit "All" because of this feature.
-- Type .kitlist to list all current kits in your server.
+- Type .kitlist to list all current kits in your server. The table is in your Character database under the name custom_enchant_kits.
 
 ### 🛠 Customization
 - Edit gold cost per item quality inside `Reforger.lua` (`QUALITY_COST` table).
