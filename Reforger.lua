@@ -77,6 +77,8 @@ local _isSPorIntCache = {}
 local _hasRAPCache = {}
 local slotOrderPrefs = {}
 local statMenuCache = {}
+local HandleClearKitCommand
+local NormalizeKitKey
 local ENCHANT_KITS = {}
 local ENCHANT_KIT_LABELS = {}
 local ENCHANT_KIT_CLEAR_PENDING = {}
@@ -489,7 +491,7 @@ local function SanitizeItemArg(arg)
     return arg
 end
 
-local function NormalizeKitKey(key)
+NormalizeKitKey = function(key)
     if not key then return nil end
     local trimmed = key:gsub("^%s+", ""):gsub("%s+$", "")
     if trimmed == "" then return nil end
@@ -1252,7 +1254,7 @@ end
 
 RegisterPlayerEvent(42, OnReforgerCommand)
 RegisterPlayerEvent(42, OnEnchantHelpCommand)
-local function HandleClearKitCommand(player, rest)
+HandleClearKitCommand = function(player, rest)
     rest = rest and rest:gsub("^%s+", ""):gsub("%s+$", "") or ""
     if rest == "" then
         SendError(player, "Usage: .clearkit <kitName|all>")
