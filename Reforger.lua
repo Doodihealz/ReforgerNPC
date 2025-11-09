@@ -1300,10 +1300,13 @@ local function HandleEnchantCommand(player, rest)
         ApplyEnchantKit(player, targetItem, kitMatch)
         return false
     end
-    local trimmed = remainder:gsub("^%s+", "")
-    if trimmed ~= "" and trimmed:find("%s") == nil and not trimmed:match("^%d+$") then
-        ApplyEnchantKit(player, targetItem, trimmed)
-        return false
+    local trimmedToken = remainder:match("^(%S+)$")
+    if trimmedToken and trimmedToken ~= "" then
+        local normalized = NormalizeKitKey(trimmedToken)
+        if normalized and ENCHANT_KITS[normalized] then
+            ApplyEnchantKit(player, targetItem, trimmedToken)
+            return false
+        end
     end
     local enchantStr, slotStr = remainder:match("^(%d+)%s+(%d+)%s*$")
     if not enchantStr or not slotStr then
