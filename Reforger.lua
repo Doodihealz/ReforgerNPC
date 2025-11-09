@@ -63,6 +63,7 @@ local SAME_STAT_SYNERGY_BONUS = 1.25
 
 local MANUAL_MODE_DEFAULT = false
 local BAG_MAX_SLOT = 36
+local KIT_APPLICATION_FREE = true
 
 local t_insert, t_concat = table.insert, table.concat
 local m_random = math.random
@@ -511,6 +512,15 @@ local function ApplyEnchantKit(player, item, kitKeyRaw, suppressMessages)
         return 0
     end
     local applied = 0
+    local cost = 0
+    if not KIT_APPLICATION_FREE and player then
+        local base = QUALITY_COST[item:GetQuality()] or 100000
+        cost = GetScaledCost(base, player:GetLevel())
+        if player:GetCoinage() < cost then
+            SendError(player, "You don't have enough gold to apply this kit.")
+            return 0
+        end
+    end
     for _, entry in ipairs(kit) do
         if safeSetEnchant(item, entry.id, entry.slot) then
             applied = applied + 1
@@ -521,6 +531,9 @@ local function ApplyEnchantKit(player, item, kitKeyRaw, suppressMessages)
             SendError(player, "No enchants from kit "..tostring(kitKeyRaw).." were applied.")
         end
         return 0
+    end
+    if cost > 0 and player then
+        player:ModifyMoney(-cost)
     end
     if not suppressMessages then
         local label = ENCHANT_KIT_LABELS[kitKey] or kitKeyRaw
@@ -608,7 +621,7 @@ local function ShowEnchantHelp(player)
         "|cffffcc00.enchant [itemLink] <enchantId> <slot>|r - apply a single enchant to slot 0 or 1.",
         "|cffffcc00.enchant kit <enchantId> <slot> ... <kitName>|r - save a kit (name can be words or numbers).",
         "|cffffcc00.enchant [itemLink] kit <kitName>|r - apply a saved kit to one item.",
-        "|cffffcc00.enchant all kit <kitName>|r - apply a kit to every uncommon+ item you're wearing.",
+        "|cffffcc00.enchant all <kitName>|r - apply a kit to every uncommon+ item you're wearing.",
         "|cffffcc00.clearkit <kitName>|r removes a kit, |cffffcc00.clearkit all|r then |cffffcc00.clearkit all confirm|r wipes them all.",
         "|cffffcc00.kitlist|r lists all saved kits and their enchants.",
         "Example: |cffffcc00.enchant kit 3854 0 2273 1 BIS|r defines kit 'BIS' with two enchants."
@@ -1269,9 +1282,9 @@ local function HandleEnchantCommand(player, rest)
         return DefineEnchantKit(player, kitArgs)
     end
     if lowerRest:sub(1,3) == "all" and (rest:len() == 3 or rest:sub(4,4) == " ") then
-        local kitIdStr = rest:match("^all%s+kit%s+(.+)$")
+        local kitIdStr = rest:match("^all%s+(.+)$")
         if not kitIdStr then
-            SendError(player, "Usage: .enchant all kit <kitName>")
+            SendError(player, "Usage: .enchant all <kitName>")
             return false
         end
         kitIdStr = kitIdStr:gsub("^%s+", ""):gsub("%s+$", "")
