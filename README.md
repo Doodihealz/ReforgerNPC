@@ -44,6 +44,11 @@ Items are only eligible for enchantments of their class (WEAPON, ARMOR, or ANY).
 - **Direct Application**: Enchantments are applied directly without item recreation
 - **Smart Targeting**: Ranged Attack Power enchants only apply to Hunters (class ID 4)
 
+‼️NEW FEATURES‼️
+- **Added a .enchant command**: Players can manually enchant slot 0 or slot 1 of an item with the actual enchantment id in the sql table, allowing for extreme fine tuning of enchantments.
+- **Added the ability to make kits**: Players can now create a kit with a name or number value and apply said kit to an item, or on all items they have equipped, using the .enchant kit all feature!
+- You may now also delete kits. .clearkit kitname. You can also get a fresh kit start by typing .clearkit all. This will ask for a confirmation but it wipes all existing kits. You are not able to name a kit "All" because of this feature.
+
 ### 🛠 Customization
 - Edit gold cost per item quality inside `Reforger.lua` (`QUALITY_COST` table).
 - Adjust NPC ID or excluded item list freely.
