@@ -22,7 +22,34 @@ local LOADED_KIT_COUNT = 0
 local ALLOWED_IDS = { [18706]=true }
 local EXCLUDED_IDS = { [4499]=true,[5571]=true,[5572]=true,[805]=true,[828]=true,[856]=true,[918]=true,[1939]=true,[4245]=true,[5764]=true,[5765]=true,[14155]=true,[14156]=true,[17966]=true,[19291]=true,[21841]=true,[41599]=true,[41729]=true,[43345]=true,[43575]=true,[43958]=true,[44751]=true,[45854]=true,[49295]=true,[38346]=true,[38347]=true,[38348]=true,[38349]=true,[39489]=true,[41600]=true,[34845]=true,[38225]=true,[20400]=true,[22243]=true,[22244]=true,[44447]=true }
 
-local STAT_COLORS = { ["Agility"]="|cff00ff00Agility|r",["Strength"]="|cffff0000Strength|r",["Stamina"]="|cffffffffStamina|r",["Spirit"]="|cffff00ffSpirit|r",["Intellect"]="|cff00ffffIntellect|r",["Attack Power"]="|cff00ff00Attack Power|r",["Spell Power"]="|cffff7f00Spell Power|r",["Crit"]="|cffffff00Crit|r",["Haste"]="|cffffcc00Haste|r",["Hit"]="|cff9999ffHit|r",["Resilience"]="|cffff66ffResilience|r",["Dodge"]="|cffffcc99Dodge|r",["Parry"]="|cffffcc99Parry|r",["Block"]="|cffffcc99Block|r",["Armor Penetration"]="|cffff9999Armor Penetration|r",["Expertise"]="|cffdd8800Expertise|r",["Ranged Attack Power"]="|cff66ff66Ranged Attack Power|r" }
+local STAT_COLORS = {
+    ["Agility"]="|cff7cfc00Agility|r",
+    ["Strength"]="|cffff4d4dStrength|r",
+    ["Stamina"]="|cff00fa9aStamina|r",
+    ["Spirit"]="|cffba55d3Spirit|r",
+    ["Intellect"]="|cff1e90ffIntellect|r",
+    ["Attack Power"]="|cff9acd32Attack Power|r",
+    ["Ranged Attack Power"]="|cff40e0d0Ranged Attack Power|r",
+    ["Spell Power"]="|cffffa500Spell Power|r",
+    ["Critical Strike Rating"]="|cffffd700Critical Strike Rating|r",
+    ["Haste"]="|cffff69b4Haste|r",
+    ["Hit"]="|cff00ced1Hit|r",
+    ["Resilience"]="|cffff8c69Resilience|r",
+    ["Dodge"]="|cff98fb98Dodge|r",
+    ["Parry"]="|cffdc143cParry|r",
+    ["Block"]="|cffb8860bBlock|r",
+    ["Armor"]="|cfff5f5dcArmor|r",
+    ["Armor Penetration"]="|cff708090Armor Penetration|r",
+    ["Expertise"]="|cffff7f50Expertise|r",
+    ["Mana every 5 sec"]="|cff00bfffMana every 5 sec|r",
+    ["Health every 5 sec"]="|cffff6347Health every 5 sec|r",
+    ["Defense Rating"]="|cffffdab9Defense Rating|r",
+    ["Nature Resistance"]="|cff7fff00Nature Resistance|r",
+    ["Frost Resistance"]="|cff87cefaFrost Resistance|r",
+    ["Shadow Resistance"]="|cff9370dbShadow Resistance|r",
+    ["Fire Resistance"]="|cffff6a00Fire Resistance|r",
+    ["Arcane Resistance"]="|cffe0ffffArcane Resistance|r"
+}
 
 local STAT_DISPLAY_NAMES = {
     ["agility"] = "Agility",
@@ -33,8 +60,8 @@ local STAT_DISPLAY_NAMES = {
     ["spell power"] = "Spell Power",
     ["attack power"] = "Attack Power",
     ["ranged attack power"] = "Ranged Attack Power",
-    ["crit"] = "Crit",
-    ["critical strike rating"] = "Crit",
+    ["crit"] = "Critical Strike Rating",
+    ["critical strike rating"] = "Critical Strike Rating",
     ["haste"] = "Haste",
     ["hit"] = "Hit",
     ["resilience"] = "Resilience",
@@ -46,7 +73,7 @@ local STAT_DISPLAY_NAMES = {
     ["fire resistance"] = "Fire Resistance",
     ["arcane resistance"] = "Arcane Resistance",
     ["defense rating"] = "Defense Rating",
-    ["mana every 5 sec"] = "MP5"
+    ["mana every 5 sec"] = "Mana every 5 sec"
 }
 
 local RANGED_AP_IDS = { [2047]=true,[2048]=true,[2049]=true,[2050]=true,[2051]=true,[2052]=true,[2053]=true,[2054]=true,[2055]=true,[2056]=true,[2057]=true,[2058]=true,[2059]=true,[2060]=true,[2061]=true,[2062]=true,[2064]=true,[2065]=true,[2066]=true,[2067]=true,[2068]=true,[2069]=true,[2070]=true,[2071]=true,[2072]=true,[2073]=true,[2074]=true }
@@ -68,6 +95,7 @@ local ACQ_ROLL_CHANCE_DENOM = 1
 
 local WRITE_SLOTS_REFORGE  = {0, 1}
 local WRITE_SLOTS_ACQUIRE  = {0, 1}
+local ENCHANT_SLOTS = {0, 1}
 
 local SPELLPOWER_SYNERGY_BONUS = 0.35
 local SAME_STAT_SYNERGY_BONUS = 1.25
@@ -466,6 +494,18 @@ local function GetEnchantTier(enchantId)
     return enchantTierMap[enchantId] or 1
 end
 
+local function KitUsableByPlayer(player, kit)
+    if not player or not kit then return false end
+    local playerTier = levelToTier(player:GetLevel())
+    for _, entry in ipairs(kit) do
+        local enchantTier = GetEnchantTier(entry.id)
+        if enchantTier > playerTier then
+            return false, enchantTier, playerTier
+        end
+    end
+    return true, playerTier, playerTier
+end
+
 local function ComputeKitCost(player, item, kit)
     if KIT_APPLICATION_FREE or not player or not item then return 0 end
     local base = QUALITY_COST[item:GetQuality()] or 100000
@@ -475,11 +515,15 @@ local function ComputeKitCost(player, item, kit)
     end
     local playerTier = levelToTier(player:GetLevel())
     local surcharge = 0
+    local countedIds = {}
     for _, entry in ipairs(kit) do
-        local enchantTier = GetEnchantTier(entry.id)
-        if enchantTier > playerTier then
-            local tierDiff = enchantTier - playerTier
-            surcharge = surcharge + math.floor(baseCost * 0.25 * tierDiff)
+        if not countedIds[entry.id] then
+            countedIds[entry.id] = true
+            local enchantTier = GetEnchantTier(entry.id)
+            if enchantTier > playerTier then
+                local tierDiff = enchantTier - playerTier
+                surcharge = surcharge + math.floor(baseCost * 0.25 * tierDiff)
+            end
         end
     end
     return baseCost + surcharge
@@ -519,6 +563,7 @@ local function DefineEnchantKit(player, args)
         return false
     end
     local kit = {}
+    local seenIds = {}
     for i=1,#tokens,2 do
         local enchantId = tonumber(tokens[i])
         local slotIndex = tonumber(tokens[i+1])
@@ -530,6 +575,11 @@ local function DefineEnchantKit(player, args)
             SendError(player, "Invalid slot: "..tostring(tokens[i+1]).." (use 0 or 1)")
             return false
         end
+        if seenIds[enchantId] then
+            SendError(player, string.format("Duplicate enchant %d detected. Each kit may only include an enchant once.", enchantId))
+            return false
+        end
+        seenIds[enchantId] = true
         kit[#kit+1] = { id = enchantId, slot = slotIndex }
     end
     ENCHANT_KITS[kitKey] = kit
@@ -554,6 +604,11 @@ local function ApplyEnchantKit(player, item, kitKeyRaw, suppressMessages, charge
         SendError(player, "Unknown kit: "..tostring(kitKeyRaw))
         return 0
     end
+    local allowed, badTier, playerTier = KitUsableByPlayer(player, kit)
+    if not allowed then
+        SendError(player, string.format("Kit contains tier %d enchants but you only have access up to tier %d. Level up before using this kit.", badTier or 0, playerTier or 0))
+        return 0
+    end
     local applied = 0
     local shouldCharge = chargeGold ~= false
     local cost = 0
@@ -564,8 +619,10 @@ local function ApplyEnchantKit(player, item, kitKeyRaw, suppressMessages, charge
             return 0
         end
     end
+    local appliedIds = {}
     for _, entry in ipairs(kit) do
-        if safeSetEnchant(item, entry.id, entry.slot) then
+        if not appliedIds[entry.id] and safeSetEnchant(item, entry.id, entry.slot) then
+            appliedIds[entry.id] = true
             applied = applied + 1
         end
     end
@@ -598,6 +655,11 @@ local function ApplyKitToAllEquipped(player, kitKeyRaw)
     local kit = kitKey and ENCHANT_KITS[kitKey]
     if not kit then
         SendError(player, "Unknown kit: "..tostring(kitKeyRaw))
+        return false
+    end
+    local allowed, badTier, playerTier = KitUsableByPlayer(player, kit)
+    if not allowed then
+        SendError(player, string.format("Kit contains tier %d enchants but you only have access up to tier %d. Level up before using this kit.", badTier or 0, playerTier or 0))
         return false
     end
     local candidates = {}
@@ -681,9 +743,12 @@ end
 local function ShowEnchantHelp(player)
     local lines = {
         "|cffffcc00.enchant [itemLink] <enchantId> <slot>|r - apply a single enchant to slot 0 or 1.",
+        "|cffffcc00.enchant <itemEntry> <enchantId> <slot>|r - same as above, using the numeric item entry.",
         "|cffffcc00.enchant kit <enchantId> <slot> ... <kitName>|r - save a kit (name can be words or numbers).",
         "|cffffcc00.enchant [itemLink] kit <kitName>|r - apply a saved kit to one item.",
         "|cffffcc00.enchant all <kitName>|r - apply a kit to every uncommon+ item you're wearing.",
+        "|cffffcc00.remove enchant [itemLink]|r - strip every enchant from one item.",
+        "|cffffcc00.remove enchant all|r - strip every enchant from your equipped items.",
         "|cffffcc00.clearkit <kitName>|r removes a kit, |cffffcc00.clearkit all|r then |cffffcc00.clearkit all confirm|r wipes them all.",
         "|cffffcc00.kitlist|r lists all saved kits and their enchants.",
         "Example: |cffffcc00.enchant kit 3854 0 2273 1 BIS|r defines kit 'BIS' with two enchants."
@@ -970,6 +1035,39 @@ safeSetEnchant = function(item, id, slot)
         if success then return result ~= false end
     end
     return false
+end
+
+local function ClearAllEnchantsOnItem(item)
+    if not item then return 0 end
+    local removed = 0
+    for _, slotIndex in ipairs(ENCHANT_SLOTS) do
+        local current = safeGetEnchantId(item, slotIndex)
+        if current and current ~= 0 then
+            if safeSetEnchant(item, 0, slotIndex) then
+                removed = removed + 1
+            end
+        end
+    end
+    if removed > 0 then
+        InvalidateStatCacheForItem(item)
+        if SAVE_ITEM_IMMEDIATELY and item.SaveToDB then item:SaveToDB() end
+    end
+    return removed
+end
+
+local function RemoveEnchantsFromAllEquipped(player)
+    if not player then return 0 end
+    local affected = 0
+    for slot=0,18 do
+        local item = player:GetItemByPos(255, slot)
+        if item then
+            local removed = ClearAllEnchantsOnItem(item)
+            if removed > 0 then
+                affected = affected + 1
+            end
+        end
+    end
+    return affected
 end
 
 local function ApplyEnchantsDirectly(item, player)
@@ -1352,16 +1450,28 @@ local function HandleEnchantCommand(player, rest)
         kitIdStr = kitIdStr:gsub("^%s+", ""):gsub("%s+$", "")
         return ApplyKitToAllEquipped(player, kitIdStr)
     end
-    local itemArg, remainder = SplitItemAndRemainder(rest)
-    if not itemArg then
-        SendError(player, "Unable to parse item link.")
-        return false
+    local descriptor
+    local remainder
+    if rest:match("^%d+%s") then
+        local entryStr, rem = rest:match("^(%d+)%s+(.*)$")
+        if entryStr then
+            descriptor = { entry = tonumber(entryStr) }
+            remainder = rem
+        end
     end
-    itemArg = SanitizeItemArg(itemArg)
-    local descriptor = ExtractItemDescriptor(itemArg)
     if not descriptor then
-        SendError(player, "Unable to parse item link.")
-        return false
+        local itemArg, rem = SplitItemAndRemainder(rest)
+        if not itemArg then
+            SendError(player, "Unable to parse item reference.")
+            return false
+        end
+        itemArg = SanitizeItemArg(itemArg)
+        descriptor = ExtractItemDescriptor(itemArg)
+        if not descriptor then
+            SendError(player, "Unable to parse item reference.")
+            return false
+        end
+        remainder = rem
     end
     remainder = remainder and remainder:gsub("^%s+", "") or ""
     local targetItem = FindPlayerItem(player, descriptor)
@@ -1408,6 +1518,57 @@ local function HandleEnchantCommand(player, rest)
     return false
 end
 
+local function HandleRemoveCommand(player, rest)
+    rest = rest and rest:gsub("^%s+", ""):gsub("%s+$", "") or ""
+    if rest == "" then
+        SendError(player, "Usage: .remove enchant [itemLink]|all")
+        return false
+    end
+    local subCmd, remainder = rest:match("^(%S+)%s*(.*)$")
+    if not subCmd or subCmd:lower() ~= "enchant" then
+        SendError(player, "Usage: .remove enchant [itemLink]|all")
+        return false
+    end
+    remainder = remainder and remainder:gsub("^%s+", "") or ""
+    if remainder == "" then
+        SendError(player, "Usage: .remove enchant [itemLink]|all")
+        return false
+    end
+    local lowerRem = remainder:lower()
+    if lowerRem == "all" then
+        local cleared = RemoveEnchantsFromAllEquipped(player)
+        if cleared == 0 then
+            SendError(player, "No equipped items had enchants to remove.")
+        else
+            SendSuccess(player, string.format("Removed enchants from %d item(s).", cleared))
+        end
+        return false
+    end
+    local itemArg, leftover = SplitItemAndRemainder(remainder)
+    if not itemArg then
+        SendError(player, "Unable to parse item link.")
+        return false
+    end
+    itemArg = SanitizeItemArg(itemArg)
+    local descriptor = ExtractItemDescriptor(itemArg)
+    if not descriptor then
+        SendError(player, "Unable to parse item link.")
+        return false
+    end
+    local targetItem = FindPlayerItem(player, descriptor)
+    if not targetItem then
+        SendError(player, "Item not found in your equipment or bags.")
+        return false
+    end
+    local removed = ClearAllEnchantsOnItem(targetItem)
+    if removed == 0 then
+        SendError(player, "No enchants found on that item.")
+        return false
+    end
+    SendSuccess(player, string.format("Removed %d enchant(s) from %s.", removed, targetItem:GetItemLink() or "item"))
+    return false
+end
+
 local function OnReforgerCommand(event, player, command)
     if not command or command == "" then return end
     local trimmed = command
@@ -1417,7 +1578,7 @@ local function OnReforgerCommand(event, player, command)
     local cmd, rest = trimmed:match("^(%S+)%s*(.*)$")
     if not cmd then return end
     local lowerCmd = cmd:lower()
-    if lowerCmd ~= "enchant" and lowerCmd ~= "clearkit" then return end
+    if lowerCmd ~= "enchant" and lowerCmd ~= "clearkit" and lowerCmd ~= "remove" then return end
     if not player:IsGM() then
         player:SendBroadcastMessage("|cffff5555You do not have permission to use ."..cmd.."|r")
         return false
@@ -1427,6 +1588,11 @@ local function OnReforgerCommand(event, player, command)
             return false
         end
         return HandleEnchantCommand(player, rest)
+    elseif lowerCmd == "remove" then
+        if not EnsureReforgerReady(player) then
+            return false
+        end
+        return HandleRemoveCommand(player, rest)
     elseif lowerCmd == "clearkit" then
         return HandleClearKitCommand(player, rest)
     end
