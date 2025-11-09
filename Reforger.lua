@@ -302,7 +302,6 @@ local function LoadEnchantCache()
     until not q:NextRow()
     
     LOADED_ENCHANT_COUNT = loadedCount
-    print("Loaded " .. loadedCount .. " enchantments into cache")
     return true
 end
 
@@ -671,7 +670,7 @@ local function ShowKitList(player)
             local name = enchantNameCache[spell.id] or ("Enchant "..spell.id)
             parts[#parts+1] = string.format("%s (slot %d)", name, spell.slot)
         end
-        SendYellowMessage(player, string.format("Kit %s: %s", entry.label, table.concat(parts, " | ")))
+        SendYellowMessage(player, string.format("%s: %s", entry.label, table.concat(parts, " | ")))
     end
 end
 
