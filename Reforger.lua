@@ -80,6 +80,7 @@ local s_format = string.format
 
 local enchantCache = { ANY = {}, WEAPON = {}, ARMOR = {} }
 local enchantNameCache = {}
+local enchantTierMap = {}
 local parsedStatCache = {}
 local playerEligibleMap = {}
 local colorizedCache = {}
@@ -92,6 +93,7 @@ local NormalizeKitKey
 local EnsureKitTable
 local safeSetEnchant
 local safeGetEnchantId
+local levelToTier
 local ENCHANT_KITS = {}
 local ENCHANT_KIT_LABELS = {}
 local ENCHANT_KIT_CLEAR_PENDING = {}
@@ -297,6 +299,7 @@ local function LoadEnchantCache()
             C[t] = C[t] or {}
             t_insert(C[t], id)
             enchantNameCache[id] = comm or ("Enchant " .. id)
+            enchantTierMap[id] = t
             loadedCount = loadedCount + 1
         end
     until not q:NextRow()
@@ -459,10 +462,27 @@ local function DeleteAllKitsFromDB()
     CharDBExecute(string.format("TRUNCATE TABLE %s", KIT_TABLE_NAME))
 end
 
-local function ComputeKitCost(player, item)
+local function GetEnchantTier(enchantId)
+    return enchantTierMap[enchantId] or 1
+end
+
+local function ComputeKitCost(player, item, kit)
     if KIT_APPLICATION_FREE or not player or not item then return 0 end
     local base = QUALITY_COST[item:GetQuality()] or 100000
-    return GetScaledCost(base, player:GetLevel())
+    local baseCost = GetScaledCost(base, player:GetLevel())
+    if not kit or #kit == 0 then
+        return baseCost
+    end
+    local playerTier = levelToTier(player:GetLevel())
+    local surcharge = 0
+    for _, entry in ipairs(kit) do
+        local enchantTier = GetEnchantTier(entry.id)
+        if enchantTier > playerTier then
+            local tierDiff = enchantTier - playerTier
+            surcharge = surcharge + math.floor(baseCost * 0.25 * tierDiff)
+        end
+    end
+    return baseCost + surcharge
 end
 
 local function AnnounceStartupStatus()
@@ -538,7 +558,7 @@ local function ApplyEnchantKit(player, item, kitKeyRaw, suppressMessages, charge
     local shouldCharge = chargeGold ~= false
     local cost = 0
     if shouldCharge then
-        cost = ComputeKitCost(player, item)
+        cost = ComputeKitCost(player, item, kit)
         if player:GetCoinage() < cost then
             SendError(player, "You don't have enough gold to apply this kit.")
             return 0
@@ -575,7 +595,8 @@ local function ApplyKitToAllEquipped(player, kitKeyRaw)
         return false
     end
     local kitKey = NormalizeKitKey(kitKeyRaw)
-    if not kitKey or not ENCHANT_KITS[kitKey] then
+    local kit = kitKey and ENCHANT_KITS[kitKey]
+    if not kit then
         SendError(player, "Unknown kit: "..tostring(kitKeyRaw))
         return false
     end
@@ -584,7 +605,7 @@ local function ApplyKitToAllEquipped(player, kitKeyRaw)
     for slot=0,18 do
         local item = player:GetItemByPos(255, slot)
         if item and IsValidEquipable(item) and item:GetQuality() >= 2 then
-            local cost = ComputeKitCost(player, item)
+            local cost = ComputeKitCost(player, item, kit)
             candidates[#candidates+1] = { item = item, cost = cost }
             totalProjectedCost = totalProjectedCost + cost
         end
@@ -912,7 +933,7 @@ local function pickWithFloor(p, tier, weighted)
     return pickWeighted(weighted)
 end
 
-local function levelToTier(level)
+levelToTier = function(level)
     if not level or level < 1 then return 1 end
     if level >= 80 then return 5 -- max-level characters should access tier 5 enchants
     elseif level >= 70 then return 4
