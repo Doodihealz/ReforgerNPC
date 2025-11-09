@@ -43,8 +43,6 @@ Items are only eligible for enchantments of their class (WEAPON, ARMOR, or ANY).
 
 **Duplicate enchantments will never be applied** (e.g., you will not get Windfury 3 twice on the same item). Two similar but distinct enchants (like +43 Spell Power and +44 Spell Power) are allowed on the same item.
 
-This does not apply for manually .enchant enchantments. You can have +100 Agility on both slot 0 and slot 1. Yes its exploitable. Show some restraint. It requires GM Mode for a reason.
-
 ### ✅ Key Features
 - **Suffix Preservation**: Items keep their original suffixes like "of the Bear", "of the Monkey", etc.
 - **Gem Preservation**: Socketed gems remain intact during the reforging process
