@@ -1,10 +1,23 @@
-local ENABLE_RANDOM_ON_ACQUIRE = true
+--==========================================================
+-- Config Flags
+--==========================================================
+local ENABLE_RANDOM_ON_ACQUIRE = true    -- apply random enchants when items are obtained/equipped
+local KIT_APPLICATION_FREE     = true    -- false = charge reforger cost when applying kits
+local MANUAL_MODE_DEFAULT      = false   -- default manual-mode state per player
+local SAVE_ITEM_IMMEDIATELY    = false   -- persist enchanted items immediately
+local ACQ_SKIP_IF_HAS_ENCHANT  = true    -- skip acquisition rolls if slot already has an enchant
+
+--==========================================================
+-- Core Constants / State
+--==========================================================
 local RNG_SEEDED = false
 local NPC_ID = 200004
 
 local QUALITY_COST = { [0]=10000,[1]=20000,[2]=50000,[3]=100000,[4]=250000,[5]=1000000 }
 local MAX_LEVEL = 80
 local ENCHANT_CACHE_READY = false
+local LOADED_ENCHANT_COUNT = 0
+local LOADED_KIT_COUNT = 0
 
 local ALLOWED_IDS = { [18706]=true }
 local EXCLUDED_IDS = { [4499]=true,[5571]=true,[5572]=true,[805]=true,[828]=true,[856]=true,[918]=true,[1939]=true,[4245]=true,[5764]=true,[5765]=true,[14155]=true,[14156]=true,[17966]=true,[19291]=true,[21841]=true,[41599]=true,[41729]=true,[43345]=true,[43575]=true,[43958]=true,[44751]=true,[45854]=true,[49295]=true,[38346]=true,[38347]=true,[38348]=true,[38349]=true,[39489]=true,[41600]=true,[34845]=true,[38225]=true,[20400]=true,[22243]=true,[22244]=true,[44447]=true }
@@ -52,8 +65,6 @@ local HUNTER_RAP_BONUS = 5
 local ACQ_MAX_SLOTS = 2
 local ACQ_ATTEMPTS_PER_SLOT = 8
 local ACQ_ROLL_CHANCE_DENOM = 1
-local ACQ_SKIP_IF_HAS_ENCHANT = true
-local SAVE_ITEM_IMMEDIATELY = false
 
 local WRITE_SLOTS_REFORGE  = {0, 1}
 local WRITE_SLOTS_ACQUIRE  = {0, 1}
@@ -61,9 +72,7 @@ local WRITE_SLOTS_ACQUIRE  = {0, 1}
 local SPELLPOWER_SYNERGY_BONUS = 0.35
 local SAME_STAT_SYNERGY_BONUS = 1.25
 
-local MANUAL_MODE_DEFAULT = false
 local BAG_MAX_SLOT = 36
-local KIT_APPLICATION_FREE = true
 
 local t_insert, t_concat = table.insert, table.concat
 local m_random = math.random
@@ -292,6 +301,7 @@ local function LoadEnchantCache()
         end
     until not q:NextRow()
     
+    LOADED_ENCHANT_COUNT = loadedCount
     print("Loaded " .. loadedCount .. " enchantments into cache")
     return true
 end
@@ -412,8 +422,10 @@ end
 
 local function LoadKitsFromDB()
     if not KIT_TABLE_READY then return end
+    LOADED_KIT_COUNT = 0
     local q = CharDBQuery(string.format("SELECT kit_key, label, payload FROM %s", KIT_TABLE_NAME))
     if not q then return end
+    local loaded = 0
     repeat
         local key = q:GetString(0)
         local label = q:GetString(1)
@@ -423,9 +435,11 @@ local function LoadKitsFromDB()
             if #kit > 0 then
                 ENCHANT_KITS[key] = kit
                 ENCHANT_KIT_LABELS[key] = label or key
+                loaded = loaded + 1
             end
         end
     until not q:NextRow()
+    LOADED_KIT_COUNT = loaded
 end
 
 local function SaveKitToDB(kitKey, label, kit)
@@ -444,6 +458,10 @@ end
 local function DeleteAllKitsFromDB()
     if not KIT_TABLE_READY then return end
     CharDBExecute(string.format("TRUNCATE TABLE %s", KIT_TABLE_NAME))
+end
+
+local function AnnounceStartupStatus()
+    print(string.format("[Reforger] Startup complete: %d enchant(s) cached, %d kit(s) loaded.", LOADED_ENCHANT_COUNT, LOADED_KIT_COUNT))
 end
 
 local function DefineEnchantKit(player, args)
@@ -1445,3 +1463,4 @@ if KIT_TABLE_READY then
 else
     print("[Reforger] Kit persistence disabled; table creation failed.")
 end
+AnnounceStartupStatus()
