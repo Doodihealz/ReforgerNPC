@@ -79,11 +79,16 @@ local slotOrderPrefs = {}
 local statMenuCache = {}
 local HandleClearKitCommand
 local NormalizeKitKey
+local EnsureKitTable
+local safeSetEnchant
+local safeGetEnchantId
 local ENCHANT_KITS = {}
 local ENCHANT_KIT_LABELS = {}
 local ENCHANT_KIT_CLEAR_PENDING = {}
 local CLEAR_KIT_CONFIRM_TIMEOUT = 10
 local RESERVED_KIT_NAME = "all"
+local KIT_TABLE_READY = false
+local KIT_TABLE_NAME = "custom_enchant_kits"
 
 local function CloneDefaultSlotOrder()
     local order = {}
@@ -361,6 +366,85 @@ local function InvalidateStatCacheForItem(item)
     end
 end
 
+local function EscapeSQL(str)
+    if str == nil then return "" end
+    return tostring(str):gsub("\\", "\\\\"):gsub("'", "''")
+end
+
+local function SerializeKit(kit)
+    local parts = {}
+    for _, entry in ipairs(kit) do
+        parts[#parts+1] = string.format("%d:%d", entry.id, entry.slot)
+    end
+    return table.concat(parts, ",")
+end
+
+local function DeserializeKit(serialized)
+    local kit = {}
+    if not serialized or serialized == "" then return kit end
+    for token in serialized:gmatch("([^,]+)") do
+        local id, slot = token:match("^(%d+):(%d+)$")
+        if id and slot then
+            kit[#kit+1] = { id = tonumber(id), slot = tonumber(slot) }
+        end
+    end
+    return kit
+end
+
+EnsureKitTable = function()
+    local ok, err = pcall(function()
+        CharDBExecute(string.format([[
+            CREATE TABLE IF NOT EXISTS %s (
+                kit_key VARCHAR(64) NOT NULL PRIMARY KEY,
+                label   VARCHAR(64) NOT NULL,
+                payload TEXT NOT NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+        ]], KIT_TABLE_NAME))
+    end)
+    if not ok then
+        print("[Reforger] Failed to ensure kit table: "..tostring(err))
+        KIT_TABLE_READY = false
+        return
+    end
+    KIT_TABLE_READY = true
+end
+
+local function LoadKitsFromDB()
+    if not KIT_TABLE_READY then return end
+    local q = CharDBQuery(string.format("SELECT kit_key, label, payload FROM %s", KIT_TABLE_NAME))
+    if not q then return end
+    repeat
+        local key = q:GetString(0)
+        local label = q:GetString(1)
+        local payload = q:GetString(2)
+        if key and payload then
+            local kit = DeserializeKit(payload)
+            if #kit > 0 then
+                ENCHANT_KITS[key] = kit
+                ENCHANT_KIT_LABELS[key] = label or key
+            end
+        end
+    until not q:NextRow()
+end
+
+local function SaveKitToDB(kitKey, label, kit)
+    if not KIT_TABLE_READY then return end
+    local payload = SerializeKit(kit)
+    local sql = string.format("REPLACE INTO %s (kit_key, label, payload) VALUES ('%s','%s','%s')",
+        KIT_TABLE_NAME, EscapeSQL(kitKey), EscapeSQL(label or kitKey), EscapeSQL(payload))
+    CharDBExecute(sql)
+end
+
+local function DeleteKitFromDB(kitKey)
+    if not KIT_TABLE_READY then return end
+    CharDBExecute(string.format("DELETE FROM %s WHERE kit_key = '%s'", KIT_TABLE_NAME, EscapeSQL(kitKey)))
+end
+
+local function DeleteAllKitsFromDB()
+    if not KIT_TABLE_READY then return end
+    CharDBExecute(string.format("TRUNCATE TABLE %s", KIT_TABLE_NAME))
+end
+
 local function DefineEnchantKit(player, args)
     args = args and args:gsub("^%s+", "") or ""
     if args == "" then
@@ -406,6 +490,7 @@ local function DefineEnchantKit(player, args)
     end
     ENCHANT_KITS[kitKey] = kit
     ENCHANT_KIT_LABELS[kitKey] = kitIdRaw
+    SaveKitToDB(kitKey, kitIdRaw, kit)
     SendSuccess(player, string.format("Saved kit %s with %d enchant(s).", kitIdRaw, #kit))
     return false
 end
@@ -439,7 +524,8 @@ local function ApplyEnchantKit(player, item, kitKeyRaw, suppressMessages)
     end
     if not suppressMessages then
         local label = ENCHANT_KIT_LABELS[kitKey] or kitKeyRaw
-        SendSuccess(player, string.format("Applied kit %s (%d enchant(s)).", label, applied))
+        local itemLink = (item and item.GetItemLink and item:GetItemLink()) or (item and item.GetName and item:GetName()) or "item"
+        SendSuccess(player, string.format("Applied kit %s to %s (%d enchant(s)).", label, itemLink, applied))
     end
     InvalidateStatCacheForItem(item)
     if SAVE_ITEM_IMMEDIATELY and item.SaveToDB then item:SaveToDB() end
@@ -524,10 +610,37 @@ local function ShowEnchantHelp(player)
         "|cffffcc00.enchant [itemLink] kit <kitName>|r - apply a saved kit to one item.",
         "|cffffcc00.enchant all kit <kitName>|r - apply a kit to every uncommon+ item you're wearing.",
         "|cffffcc00.clearkit <kitName>|r removes a kit, |cffffcc00.clearkit all|r then |cffffcc00.clearkit all confirm|r wipes them all.",
+        "|cffffcc00.kitlist|r lists all saved kits and their enchants.",
         "Example: |cffffcc00.enchant kit 3854 0 2273 1 BIS|r defines kit 'BIS' with two enchants."
     }
     for _, line in ipairs(lines) do
         SendYellowMessage(player, line)
+    end
+end
+
+local function ShowKitList(player)
+    local entries = {}
+    for key, kit in pairs(ENCHANT_KITS) do
+        entries[#entries+1] = {
+            key = key,
+            label = ENCHANT_KIT_LABELS[key] or key,
+            kit = kit,
+        }
+    end
+    if #entries == 0 then
+        SendYellowMessage(player, "No kits defined.")
+        return
+    end
+    table.sort(entries, function(a, b)
+        return tostring(a.label):lower() < tostring(b.label):lower()
+    end)
+    for _, entry in ipairs(entries) do
+        local parts = {}
+        for idx, spell in ipairs(entry.kit) do
+            local name = enchantNameCache[spell.id] or ("Enchant "..spell.id)
+            parts[#parts+1] = string.format("%s (slot %d)", name, spell.slot)
+        end
+        SendYellowMessage(player, string.format("Kit %s: %s", entry.label, table.concat(parts, " | ")))
     end
 end
 
@@ -766,7 +879,7 @@ local function RollEnchant(item, player, blacklist, weaponBiasProb, restrictKey)
 end
 
 
-local function safeGetEnchantId(item, slot)
+safeGetEnchantId = function(item, slot)
     if not item or not slot then return 0 end
     if item.GetEnchantmentId and type(item.GetEnchantmentId) == "function" then
         local success, result = pcall(item.GetEnchantmentId, item, slot)
@@ -775,8 +888,8 @@ local function safeGetEnchantId(item, slot)
     return 0
 end
 
-local function safeSetEnchant(item, id, slot)
-    if not item or not id or not slot then return false end
+safeSetEnchant = function(item, id, slot)
+    if not item or not id or slot == nil then return false end
     if item.SetEnchantment and type(item.SetEnchantment) == "function" then
         local success, result = pcall(item.SetEnchantment, item, id, slot)
         if success then return result ~= false end
@@ -1181,14 +1294,15 @@ local function HandleEnchantCommand(player, rest)
         SendError(player, "Item not found in your equipment or bags.")
         return false
     end
-    if remainder:lower():sub(1,3) == "kit" then
-        local kitIdStr = remainder:match("^kit%s+(%S+)")
-        if not kitIdStr then
-            SendError(player, "Usage: .enchant [itemLink] kit <kitId>")
-            return false
-        end
-        kitIdStr = kitIdStr:gsub("^%s+", ""):gsub("%s+$", "")
-        ApplyEnchantKit(player, targetItem, kitIdStr)
+    local kitMatch = remainder:match("^kit%s+(%S+)")
+    if kitMatch then
+        kitMatch = kitMatch:gsub("^%s+", ""):gsub("%s+$", "")
+        ApplyEnchantKit(player, targetItem, kitMatch)
+        return false
+    end
+    local trimmed = remainder:gsub("^%s+", "")
+    if trimmed ~= "" and trimmed:find("%s") == nil and not trimmed:match("^%d+$") then
+        ApplyEnchantKit(player, targetItem, trimmed)
         return false
     end
     local enchantStr, slotStr = remainder:match("^(%d+)%s+(%d+)%s*$")
@@ -1252,8 +1366,20 @@ local function OnEnchantHelpCommand(event, player, command)
     return false
 end
 
+local function OnKitListCommand(event, player, command)
+    if not command or command == "" then return end
+    local trimmed = command
+    if trimmed:sub(1,1) == "." then trimmed = trimmed:sub(2) end
+    trimmed = trimmed:match("^%s*(.-)%s*$")
+    if not trimmed or trimmed == "" then return end
+    if trimmed:lower() ~= "kitlist" then return end
+    ShowKitList(player)
+    return false
+end
+
 RegisterPlayerEvent(42, OnReforgerCommand)
 RegisterPlayerEvent(42, OnEnchantHelpCommand)
+RegisterPlayerEvent(42, OnKitListCommand)
 HandleClearKitCommand = function(player, rest)
     rest = rest and rest:gsub("^%s+", ""):gsub("%s+$", "") or ""
     if rest == "" then
@@ -1272,6 +1398,7 @@ HandleClearKitCommand = function(player, rest)
             ENCHANT_KIT_CLEAR_PENDING[guid] = nil
             ENCHANT_KITS = {}
             ENCHANT_KIT_LABELS = {}
+            DeleteAllKitsFromDB()
             SendSuccess(player, "All kits cleared.")
         else
             ENCHANT_KIT_CLEAR_PENDING[guid] = nil
@@ -1290,6 +1417,15 @@ HandleClearKitCommand = function(player, rest)
     end
     ENCHANT_KITS[kitKey] = nil
     ENCHANT_KIT_LABELS[kitKey] = nil
+    DeleteKitFromDB(kitKey)
     SendSuccess(player, string.format("Cleared kit %s.", rest))
     return false
+end
+
+-- Final initialization for kit persistence
+EnsureKitTable()
+if KIT_TABLE_READY then
+    LoadKitsFromDB()
+else
+    print("[Reforger] Kit persistence disabled; table creation failed.")
 end
