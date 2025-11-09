@@ -1,6 +1,10 @@
 ## Reforger NPC (Eluna / AzerothCore)
 A reforging NPC that applies **two random enchantments** to an equipped item. It uses a custom tier-based enchantment system to determine what's eligible at various player levels, and supports both armor and weapon enchantments — including support for Shaman imbues, poisons, and rare effects like Windfury or Mongoose.
 
+⭐IMPORTANT REFERENCE⭐
+- https://wowpedia.fandom.com/wiki/EnchantId
+- This is the website I use to find the enchantment ids. Edit the sql table using these ids.
+
 There is now also a manual mode which you can easily toggle on or off in the npc gossip selection. It always applies the 2 highest rolls of a single stat onto an item.
 
 There's an optional Random enchantment section of the script available. You'll need the sql table for the random enchants to work just like the reforger, but this allows random tier enchants to apply to Looted items, Crafted items, and Quest Rewards!
