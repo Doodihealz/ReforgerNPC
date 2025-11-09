@@ -1,5 +1,5 @@
 ## Reforger NPC (Eluna / AzerothCore)
-A reforging NPC that applies **two random enchantments** to an equipped item. It uses a custom tier-based enchantment system to determine what's eligible at various player levels, and supports both armor and weapon enchantments — including support for Shaman imbues, poisons, and rare effects like Windfury or Mongoose.
+A reforging NPC that applies **two enchantments** to an equipped item. It uses a custom tier-based enchantment system to determine what's eligible at various player levels, and supports both armor and weapon enchantments — including support for Shaman imbues, poisons, and rare effects like Windfury or Mongoose.
 
 ⭐IMPORTANT REFERENCE⭐
 - https://wowpedia.fandom.com/wiki/EnchantId
