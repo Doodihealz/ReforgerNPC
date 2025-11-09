@@ -2,7 +2,7 @@
 -- Config Flags
 --==========================================================
 local ENABLE_RANDOM_ON_ACQUIRE = true    -- apply random enchants when items are obtained/equipped
-local KIT_APPLICATION_FREE     = true    -- false = charge reforger cost when applying kits
+local KIT_APPLICATION_FREE     = false    -- false = charge reforger cost when applying kits
 local MANUAL_MODE_DEFAULT      = false   -- default manual-mode state per player
 local SAVE_ITEM_IMMEDIATELY    = false   -- persist enchanted items immediately
 local ACQ_SKIP_IF_HAS_ENCHANT  = true    -- skip acquisition rolls if slot already has an enchant
@@ -459,6 +459,12 @@ local function DeleteAllKitsFromDB()
     CharDBExecute(string.format("TRUNCATE TABLE %s", KIT_TABLE_NAME))
 end
 
+local function ComputeKitCost(player, item)
+    if KIT_APPLICATION_FREE or not player or not item then return 0 end
+    local base = QUALITY_COST[item:GetQuality()] or 100000
+    return GetScaledCost(base, player:GetLevel())
+end
+
 local function AnnounceStartupStatus()
     print(string.format("[Reforger] Startup complete: %d enchant(s) cached, %d kit(s) loaded.", LOADED_ENCHANT_COUNT, LOADED_KIT_COUNT))
 end
@@ -513,7 +519,7 @@ local function DefineEnchantKit(player, args)
     return false
 end
 
-local function ApplyEnchantKit(player, item, kitKeyRaw, suppressMessages)
+local function ApplyEnchantKit(player, item, kitKeyRaw, suppressMessages, chargeGold)
     if kitKeyRaw and kitKeyRaw:lower() == RESERVED_KIT_NAME then
         SendError(player, "Kit name 'all' is reserved.")
         return 0
@@ -529,10 +535,10 @@ local function ApplyEnchantKit(player, item, kitKeyRaw, suppressMessages)
         return 0
     end
     local applied = 0
+    local shouldCharge = chargeGold ~= false
     local cost = 0
-    if not KIT_APPLICATION_FREE and player then
-        local base = QUALITY_COST[item:GetQuality()] or 100000
-        cost = GetScaledCost(base, player:GetLevel())
+    if shouldCharge then
+        cost = ComputeKitCost(player, item)
         if player:GetCoinage() < cost then
             SendError(player, "You don't have enough gold to apply this kit.")
             return 0
@@ -549,13 +555,14 @@ local function ApplyEnchantKit(player, item, kitKeyRaw, suppressMessages)
         end
         return 0
     end
-    if cost > 0 and player then
+    if shouldCharge and cost > 0 and player then
         player:ModifyMoney(-cost)
     end
     if not suppressMessages then
         local label = ENCHANT_KIT_LABELS[kitKey] or kitKeyRaw
         local itemLink = (item and item.GetItemLink and item:GetItemLink()) or (item and item.GetName and item:GetName()) or "item"
-        SendSuccess(player, string.format("Applied kit %s to %s (%d enchant(s)).", label, itemLink, applied))
+        local costNote = (shouldCharge and cost > 0) and (" Cost: "..FormatGold(cost)) or ""
+        SendSuccess(player, string.format("Applied kit %s to %s (%d enchant(s)).%s", label, itemLink, applied, costNote))
     end
     InvalidateStatCacheForItem(item)
     if SAVE_ITEM_IMMEDIATELY and item.SaveToDB then item:SaveToDB() end
@@ -572,21 +579,38 @@ local function ApplyKitToAllEquipped(player, kitKeyRaw)
         SendError(player, "Unknown kit: "..tostring(kitKeyRaw))
         return false
     end
-    local affected = 0
+    local candidates = {}
+    local totalProjectedCost = 0
     for slot=0,18 do
         local item = player:GetItemByPos(255, slot)
         if item and IsValidEquipable(item) and item:GetQuality() >= 2 then
-            local applied = ApplyEnchantKit(player, item, kitKey, true)
-            if applied > 0 then
-                affected = affected + 1
-            end
+            local cost = ComputeKitCost(player, item)
+            candidates[#candidates+1] = { item = item, cost = cost }
+            totalProjectedCost = totalProjectedCost + cost
+        end
+    end
+    if totalProjectedCost > 0 and player:GetCoinage() < totalProjectedCost then
+        SendError(player, string.format("You need %s to apply that kit to every item.", FormatGold(totalProjectedCost)))
+        return false
+    end
+    local affected = 0
+    local totalCharged = 0
+    for _, entry in ipairs(candidates) do
+        local applied = ApplyEnchantKit(player, entry.item, kitKey, true, false)
+        if applied > 0 then
+            affected = affected + 1
+            totalCharged = totalCharged + entry.cost
         end
     end
     if affected == 0 then
         SendError(player, "No eligible items to apply kit "..tostring(kitKeyRaw)..".")
     else
+        if totalCharged > 0 then
+            player:ModifyMoney(-totalCharged)
+        end
         local label = ENCHANT_KIT_LABELS[kitKey] or kitKeyRaw
-        SendSuccess(player, string.format("Applied kit %s to %d item(s).", label, affected))
+        local costNote = (totalCharged > 0) and (" Cost: "..FormatGold(totalCharged)) or ""
+        SendSuccess(player, string.format("Applied kit %s to %d item(s).%s", label, affected, costNote))
     end
     return false
 end
